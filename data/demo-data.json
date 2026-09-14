@@ -1,0 +1,20 @@
+{
+  "note": "Exempeldata för första UI-prototypen. app.js har samma data inbyggd så prototypen även fungerar direkt från filsystemet.",
+  "entities": ["leads", "inquiries", "projects", "project_articles", "supplier_price_history", "quotation_versions", "quotation_article_snapshots", "agents", "customers", "contacts"],
+  "data_adapter": "localStorage",
+  "lead_fields": ["name", "expected_start", "comments"],
+  "lead_statuses": ["Aktivt", "Konverterat"],
+  "inquiry_statuses": ["Ny", "Bedöms", "Go", "No Go"],
+  "inquiry_go_creates_project": true,
+  "project_source_relation": "source_inquiry_id",
+  "project_phases": ["Kalkyl", "Offert skickad", "Förhandling", "Vunnet", "Förlorat"],
+  "quotation_statuses": ["Utkast", "Intern granskning", "Skickad", "Revidering begärd", "Ersatt", "Accepterad", "Avböjd", "Utgången", "Återkallad"],
+  "source_types": ["Lead", "Direkt", "Agent", "Arkitekt", "Designer", "Befintlig kund", "Annat"],
+  "article_statuses": ["Prisförfrågan", "Förhandling", "Pris godkänt"],
+  "article_shapes": ["Rektangulär", "Rund", "Specialform"],
+  "article_cost_formula": "chargeable_sqm * approved_price_per_sqm + additional_cost",
+  "quotation_versions_store_article_snapshots": true,
+  "project_business_statuses": ["Aktivt", "Vunnet", "Förlorat"],
+  "delivery_statuses": ["Väntar orderunderlag", "Orderbekräftad", "Produktion", "Klar för leverans", "Levererad", "Avslutad"],
+  "acceptance_methods": ["Signerad offert", "E-post", "Kundportal", "Inköpsorder"]
+}

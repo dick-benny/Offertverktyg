@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Cappelen Dimyr Projects affärs- och offertsystem.">
+  <title>Cappelen Dimyr Projects</title>
+  <link rel="stylesheet" href="CSS/styles.css?v=5.7">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects</span></div></div>
+      <nav class="main-nav" aria-label="Huvudmeny">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Översikt</button>
+        <button class="nav-item" data-view="leads"><span class="nav-icon">◌</span>Leads <span class="nav-count muted" id="leadNavCount"></span></button>
+        <button class="nav-item" data-view="inquiries"><span class="nav-icon">◎</span>Förfrågningar <span class="nav-count" id="inquiryNavCount"></span></button>
+        <button class="nav-item" data-view="projects"><span class="nav-icon">▦</span>Projekt</button>
+        <button class="nav-item" data-view="articles"><span class="nav-icon">◫</span>Artiklar <span class="nav-count muted" id="articleNavCount"></span></button>
+        <button class="nav-item" data-view="quotations"><span class="nav-icon">▤</span>Offerter</button>
+        <button class="nav-item" data-view="agents"><span class="nav-icon">◇</span>Agenter</button>
+        <button class="nav-item" data-view="customers"><span class="nav-icon">○</span>Kunder</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span>Inställningar</button>
+        <div class="profile-card"><div class="avatar">DE</div><div><strong>Dick Eriksson</strong><span>Administratör</span></div><button aria-label="Profilmeny">•••</button></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Visa meny">☰</button>
+        <div class="breadcrumbs"><span>Projects</span><b>/</b><strong id="breadcrumbCurrent">Översikt</strong></div>
+        <div class="topbar-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Sök projekt, kund eller offert…"></label><button class="icon-button" aria-label="Notiser">♢<span class="notification-dot"></span></button></div>
+      </header>
+
+      <div class="content-wrap">
+        <section class="view active" id="view-dashboard" data-title="Översikt">
+          <div class="page-heading"><div><p class="eyebrow">CAPPELEN DIMYR PROJECTS</p><h1>God eftermiddag, Dick</h1><p>Här är läget för Cappelen Dimyr Projects.</p></div><button class="button primary" type="button" data-action="new-inquiry">＋ Ny förfrågan</button></div>
+          <div class="metric-grid" id="metricGrid"></div>
+          <div class="dashboard-grid"><article class="panel pipeline-panel"><div class="panel-heading"><div><h2>Pipeline</h2><p>Aktiva projekt efter affärsfas</p></div><button class="text-button" data-target-view="projects">Visa alla →</button></div><div class="pipeline-chart" id="pipelineChart"></div></article><article class="panel attention-panel"><div class="panel-heading"><div><h2>Kräver åtgärd</h2><p>Prioriterade aktiviteter</p></div></div><div class="attention-list" id="attentionList"></div></article></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Närmaste aktiva leads</h2><p>Sorterade efter förväntad projektstart</p></div><button class="text-button" data-target-view="leads">Visa alla →</button></div><div class="lead-watch-list" id="dashboardLeadRows"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Senaste förfrågningar</h2><p>Nya affärsmöjligheter som väntar på bedömning</p></div><button class="text-button" data-target-view="inquiries">Visa alla →</button></div><div class="table-scroll"><table><thead><tr><th>Förfrågan</th><th>Kund / projekt</th><th>Land</th><th>Källa</th><th>Värde</th><th>Status</th><th>Inkommen</th><th></th></tr></thead><tbody id="dashboardInquiryRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-leads" data-title="Leads">
+          <div class="page-heading compact"><div><p class="eyebrow">TIDIGA AFFÄRSMÖJLIGHETER</p><h1>Leads</h1><p>Bevaka tidiga möjligheter och konvertera dem till förfrågningar när de blir konkreta.</p></div><button class="button primary" type="button" data-action="new-lead">＋ Nytt lead</button></div>
+          <div class="view-tabs"><button class="view-tab active" data-lead-filter="active">Aktiva <span id="activeLeadCount"></span></button><button class="view-tab" data-lead-filter="converted">Konverterade <span id="convertedLeadCount"></span></button></div>
+          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>ID</th><th>Namn</th><th>Förväntad start</th><th>Kommentar</th><th>Skapad</th><th>Status</th><th></th></tr></thead><tbody id="leadRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-inquiries" data-title="Förfrågningar">
+          <div class="page-heading compact"><div><p class="eyebrow">AFFÄRSMÖJLIGHETER</p><h1>Förfrågningar</h1><p>Registrera, bedöm och besluta vilka förfrågningar som ska bli projekt.</p></div><button class="button primary" type="button" data-action="new-inquiry">＋ Ny förfrågan</button></div>
+          <div class="toolbar"><label class="table-search"><span>⌕</span><input id="inquirySearch" type="search" placeholder="Sök förfrågan…"></label><select id="inquiryStatusFilter" aria-label="Filtrera status"><option value="all">Alla statusar</option><option>Ny</option><option>Bedöms</option><option>Go</option><option>No Go</option></select><select id="inquirySourceFilter" aria-label="Filtrera källa"><option value="all">Alla källor</option><option>Lead</option><option>Agent</option><option>Direkt</option><option>Arkitekt</option><option>Designer</option><option>Befintlig kund</option><option>Annat</option></select><span class="result-count" id="inquiryResultCount"></span></div>
+          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>ID</th><th>Kund / projekt</th><th>Land</th><th>Källa</th><th>Agent</th><th>Uppskattat värde</th><th>Sannolikhet</th><th>Status</th><th>Beslutsdatum</th><th></th></tr></thead><tbody id="inquiryRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-projects" data-title="Projekt">
+          <div class="page-heading compact"><div><p class="eyebrow">AKTIV AFFÄRSPROCESS</p><h1>Projekt</h1><p>Projekt som har kvalificerats och gått vidare från förfrågan.</p></div><button class="button secondary" data-action="export-projects">Exportera</button></div>
+          <div class="view-tabs"><button class="view-tab active" data-project-filter="active">Aktiva projekt</button><button class="view-tab" data-project-filter="won">Vunna projekt</button><button class="view-tab" data-project-filter="all">Alla</button></div>
+          <div class="kanban" id="projectKanban"></div>
+        </section>
+
+        <section class="view" id="view-articles" data-title="Artiklar">
+          <div class="page-heading compact"><div><p class="eyebrow">PROJEKTARTIKLAR & LEVERANTÖRSPRIS</p><h1>Artiklar</h1><p>Storlek, form, tillverkarens pris/kvm, kostnad och prishistorik.</p></div><button class="button primary" data-action="new-article">＋ Ny artikel</button></div>
+          <div class="article-summary" id="articleSummary"></div>
+          <div class="toolbar"><label class="table-search"><span>⌕</span><input id="articleSearch" type="search" placeholder="Sök artikel…"></label><select id="articleProjectFilter" aria-label="Filtrera projekt"></select><select id="articleStatusFilter" aria-label="Filtrera status"><option value="all">Alla statusar</option><option>Prisförfrågan</option><option>Förhandling</option><option>Pris godkänt</option></select><span class="result-count" id="articleResultCount"></span></div>
+          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>Artikel</th><th>Projekt</th><th>Benämning</th><th>Storlek</th><th>Kvm</th><th>Tillverkare</th><th>Pris/kvm</th><th>Kostnad</th><th>Status</th><th></th></tr></thead><tbody id="articleRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-quotations" data-title="Offerter">
+          <div class="page-heading compact"><div><p class="eyebrow">KALKYL & VERSIONER</p><h1>Offerter</h1><p>Alla offertversioner. Gamla versioner skrivs aldrig över och accepterad version låses.</p></div></div>
+          <div class="accepted-summary" id="acceptedSummary"></div>
+          <div class="view-tabs"><button class="view-tab active" data-quote-filter="active">Aktiva <span id="activeQuoteCount"></span></button><button class="view-tab" data-quote-filter="accepted">Accepterade <span id="acceptedQuoteCount"></span></button><button class="view-tab" data-quote-filter="lost">Avböjda <span id="lostQuoteCount"></span></button><button class="view-tab" data-quote-filter="all">Alla</button></div>
+          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>Offert</th><th>Projekt</th><th>Version</th><th>Artiklar</th><th>Prod.kostnad</th><th>Belopp</th><th>Marginal</th><th>Status</th><th>Accepterad</th><th>Leveransstatus</th><th></th></tr></thead><tbody id="quotationRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-agents" data-title="Agenter"><div class="page-heading compact"><div><p class="eyebrow">MARKNAD & INTRODUKTION</p><h1>Agenter</h1><p>Territorier, registrerade möjligheter, utfall och provision.</p></div><button class="button primary" data-action="new-agent">＋ Ny agent</button></div><div class="agent-grid" id="agentGrid"></div></section>
+        <section class="view" id="view-customers" data-title="Kunder"><div class="page-heading compact"><div><p class="eyebrow">RELATIONER</p><h1>Kunder & kontakter</h1><p>Beställare, arkitekter, designers och inköpsbolag.</p></div></div><div class="empty-state"><div class="empty-icon">○</div><h2>Kundregistret är nästa steg</h2><p>Kunddata skapas tills vidare via förfrågningar och projekt.</p></div></section>
+        <section class="view" id="view-settings" data-title="Inställningar"><div class="page-heading compact"><div><p class="eyebrow">ADMINISTRATION</p><h1>Inställningar</h1><p>Företagsuppgifter som används som masterdata i nya offerter.</p></div></div><form id="companySettingsForm" class="settings-grid"><article class="panel company-settings"><h2>Företagsuppgifter</h2><div class="form-grid"><label class="field full"><span>Företagsnamn</span><input name="name"></label><label class="field full"><span>Adress</span><input name="address"></label><label class="field"><span>ZIP</span><input name="zip"></label><label class="field"><span>City</span><input name="city"></label><label class="field"><span>Country</span><input name="country"></label><label class="field"><span>Org nummer</span><input name="orgNumber"></label><label class="field"><span>VAT nummer</span><input name="vatNumber"></label><label class="field"><span>EORI</span><input name="eori"></label><label class="field full"><span>IBAN</span><input name="iban"></label><label class="field"><span>BIC / SWIFT</span><input name="bic"></label><label class="field"><span>E-mail</span><input name="email" type="email"></label><label class="field"><span>Telefon</span><input name="phone"></label><label class="field"><span>Web</span><input name="web"></label></div><div class="settings-actions"><button class="button primary">Spara företagsuppgifter</button></div></article><article class="panel"><h2>Offertregler</h2><p class="detail-sub">Kalkylens standardmarginal är tills vidare 45 %. Offertversionen sparar en snapshot av både företags- och kunduppgifter.</p><label class="field"><span>Standardmarginal</span><div class="input-suffix"><input value="45" type="number" disabled><span>%</span></div></label><label class="field"><span>Marginal som kräver godkännande</span><div class="input-suffix"><input value="35" type="number" disabled><span>%</span></div></label></article></form></section>
+      </div>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="JS/data.js?v=5.10"></script>
+  <script src="JS/app.js?v=5.10"></script>
+</body>
+</html>
