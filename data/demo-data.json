@@ -10,7 +10,7 @@
   "project_phases": ["Kalkyl", "Offert skickad", "Förhandling", "Vunnet", "Förlorat"],
   "quotation_statuses": ["Utkast", "Intern granskning", "Skickad", "Revidering begärd", "Ersatt", "Accepterad", "Avböjd", "Utgången", "Återkallad"],
   "source_types": ["Lead", "Direkt", "Agent", "Arkitekt", "Designer", "Befintlig kund", "Annat"],
-  "article_statuses": ["Prisförfrågan", "Förhandling", "Pris godkänt"],
+  "article_statuses": ["Förfrågan", "Förhandlas", "Godkänt"],
   "article_shapes": ["Rektangulär", "Rund", "Specialform"],
   "article_cost_formula": "chargeable_sqm * approved_price_per_sqm + additional_cost",
   "quotation_versions_store_article_snapshots": true,

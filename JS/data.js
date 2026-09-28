@@ -18,8 +18,26 @@
     }
 
     function normalize(data) {
-      ["leads", "inquiries", "projects", "articles", "quotations", "agents"].forEach(key => {
+      ["leads", "inquiries", "projects", "articles", "quotations", "agents", "manufacturers"].forEach(key => {
         if (!Array.isArray(data[key])) data[key] = clone(seed[key] || []);
+      });
+      data.inquiries.forEach(inquiry => {
+        const baseCustomer = { name: inquiry.customer || "", contact: "", email: "", phone: "", address: "", zip: "", city: "", country: inquiry.country || "", vatNumber: "" };
+        inquiry.customerData = { ...baseCustomer, ...(inquiry.customerData || {}) };
+        if (!Array.isArray(inquiry.preliminaryScope)) inquiry.preliminaryScope = [];
+        inquiry.preliminaryScope = inquiry.preliminaryScope.map((row, index) => ({
+          id: row.id || `SCOPE-${inquiry.id}-${String(index + 1).padStart(2, "0")}`,
+          type: row.type || "Rug",
+          description: row.description || "",
+          quantity: Number(row.quantity) || 1,
+          widthCm: Number(row.widthCm) || 0,
+          lengthCm: Number(row.lengthCm) || 0,
+          comment: row.comment || "",
+          convertedArticleId: row.convertedArticleId || null
+        }));
+        if (!Array.isArray(inquiry.designFiles)) inquiry.designFiles = [];
+        if (!Array.isArray(inquiry.history)) inquiry.history = [];
+        if (["Go", "No Go"].includes(inquiry.status) && !inquiry.decisionAt) inquiry.decisionAt = inquiry.decision || "";
       });
       const defaultCompany = { name: "Cappelen Dimyr Projects AB", address: "Regementsgatan 8", zip: "211 42", city: "Malmö", country: "Sweden", orgNumber: "", vatNumber: "", eori: "", iban: "", bic: "", email: "", phone: "", web: "cappelendimyr.com" };
       data.company = { ...defaultCompany, ...(seed.company || {}), ...(data.company || {}) };
@@ -29,8 +47,21 @@
         if (!quote.companySnapshot) quote.companySnapshot = null;
         if (!quote.customerSnapshot) quote.customerSnapshot = null;
       });
+      if (!Array.isArray(data.manufacturers)) data.manufacturers = clone(seed.manufacturers || []);
+      const statusMap = { "Prisförfrågan": "Förfrågan", "Förhandling": "Förhandlas", "Pris godkänt": "Godkänt" };
       data.articles.forEach(article => {
         if (!Number.isFinite(Number(article.quantity)) || Number(article.quantity) < 1) article.quantity = 1;
+        article.status = statusMap[article.status] || article.status || "Förfrågan";
+        article.priceUnit = article.priceUnit || "per m²";
+        const existing = data.manufacturers.find(m => m.id === article.manufacturerId || (article.manufacturer && article.manufacturer !== "—" && m.name === article.manufacturer));
+        if (existing) { article.manufacturerId = existing.id; article.manufacturer = existing.name; }
+        else if (article.manufacturer && article.manufacturer !== "—") {
+          const n = Math.max(0, ...data.manufacturers.map(m => Number(String(m.id || "").split("-").pop()) || 0)) + 1;
+          const created = { id: `MFG-${String(n).padStart(4, "0")}`, name: article.manufacturer, country: "", contact: "", email: "", phone: "", currency: article.currency || "EUR", active: true };
+          data.manufacturers.push(created); article.manufacturerId = created.id;
+        }
+        if (!Array.isArray(article.priceHistory)) article.priceHistory = [];
+        article.priceHistory.forEach(price => { price.priceUnit = price.priceUnit || "per m²"; if (price.status === "Förhandlat") price.status = "Förhandlas"; if (price.status === "Första pris") price.status = "Förfrågan"; });
       });
       // Backward-compatible migration: older localStorage data may lack projectId/sourceInquiryId.
       data.inquiries.forEach(inquiry => {
@@ -126,7 +157,20 @@
         type: values.type || "Standard",
         area: Number(values.area) || 0,
         description: values.description || "",
-        sourceLeadId: values.sourceLeadId || null
+        sourceLeadId: values.sourceLeadId || null,
+        customerData: {
+          name: values.customer || "",
+          contact: values.contact || "",
+          email: values.email || "",
+          phone: values.phone || "",
+          address: values.address || "",
+          zip: values.zip || "",
+          city: values.city || "",
+          country: values.country || "",
+          vatNumber: values.vatNumber || ""
+        },
+        preliminaryScope: [],
+        designFiles: []
       };
       state.inquiries.unshift(inquiry);
       save();
@@ -149,6 +193,9 @@
       if (!inquiry) return null;
       inquiry.status = "Go";
       inquiry.probability = Number(values.probability ?? inquiry.probability) || 0;
+      inquiry.decisionAt = new Date().toISOString().slice(0, 10);
+      if (!Array.isArray(inquiry.history)) inquiry.history = [];
+      inquiry.history.push({ status: "Go", date: inquiry.decisionAt });
 
       let project = state.projects.find(item => item.id === inquiry.projectId)
         || state.projects.find(item => item.sourceInquiryId === inquiry.id)
@@ -172,13 +219,34 @@
           createdAt: new Date().toISOString().slice(0, 10),
           customerData: {
             sameAsBilling: true,
-            billing: { name: inquiry.customer || "", address: "", zip: "", city: "", country: inquiry.country || "", vatNumber: "", contact: "", email: "" },
-            delivery: { name: inquiry.customer || "", address: "", zip: "", city: "", country: inquiry.country || "", contact: "", phone: "" }
-          }
+            billing: {
+              name: inquiry.customerData?.name || inquiry.customer || "",
+              address: inquiry.customerData?.address || "",
+              zip: inquiry.customerData?.zip || "",
+              city: inquiry.customerData?.city || "",
+              country: inquiry.customerData?.country || inquiry.country || "",
+              vatNumber: inquiry.customerData?.vatNumber || "",
+              contact: inquiry.customerData?.contact || "",
+              email: inquiry.customerData?.email || ""
+            },
+            delivery: {
+              name: inquiry.customerData?.name || inquiry.customer || "",
+              address: inquiry.customerData?.address || "",
+              zip: inquiry.customerData?.zip || "",
+              city: inquiry.customerData?.city || "",
+              country: inquiry.customerData?.country || inquiry.country || "",
+              contact: inquiry.customerData?.contact || "",
+              phone: inquiry.customerData?.phone || ""
+            }
+          },
+          preliminaryScope: clone(inquiry.preliminaryScope || []),
+          designFiles: clone(inquiry.designFiles || [])
         };
         state.projects.unshift(project);
       } else {
         project.sourceInquiryId = project.sourceInquiryId || inquiry.id;
+        if (!Array.isArray(project.preliminaryScope) || project.preliminaryScope.length === 0) project.preliminaryScope = clone(inquiry.preliminaryScope || []);
+        if (!Array.isArray(project.designFiles) || project.designFiles.length === 0) project.designFiles = clone(inquiry.designFiles || []);
       }
       inquiry.projectId = project.id;
       save();

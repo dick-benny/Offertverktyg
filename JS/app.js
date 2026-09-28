@@ -55,6 +55,10 @@
     company: {
       name: "Cappelen Dimyr Projects AB", address: "Regementsgatan 8", zip: "211 42", city: "Malmö", country: "Sweden", orgNumber: "", vatNumber: "", eori: "", iban: "", bic: "", email: "", phone: "", web: "cappelendimyr.com"
     },
+    manufacturers: [
+      { id: "MFG-0001", name: "Anisa Carpets", country: "India", contact: "", email: "", phone: "", currency: "EUR", active: true },
+      { id: "MFG-0002", name: "Bhadohi Workshop", country: "India", contact: "", email: "", phone: "", currency: "EUR", active: true }
+    ],
     agents: [
       { name: "Daretodeco AS", contact: "Christina", country: "Norge", territory: "Norway", inquiries: 12, projects: 7, won: 2, value: 185000, commission: 15, active: true },
       { name: "Studio Nord ApS", contact: "Frederik Holm", country: "Danmark", territory: "Denmark", inquiries: 8, projects: 4, won: 1, value: 92000, commission: 12, active: true },
@@ -67,6 +71,7 @@
   let quotationFilter = "active";
   let projectFilter = "active";
   let leadFilter = "active";
+  let inquiryMode = "active";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const money = (value, currency = "EUR") => new Intl.NumberFormat("sv-SE", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
@@ -79,7 +84,7 @@
     return `<strong>${new Intl.DateTimeFormat("sv-SE", { month: "short" }).format(monthDate)}</strong><span>${monthDate.getFullYear()}</span>`;
   };
   const esc = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character]));
-  const statusTone = status => ({ "Aktivt": ["#e8edef", "#617783"], "Konverterat": ["#e6ebe3", "#536851"], "Ny": ["#e8edef", "#617783"], "Bedöms": ["#f3ecdf", "#8a6e42"], "Go": ["#e6ebe3", "#536851"], "No Go": ["#f3e6e2", "#8b584f"], "Skickad": ["#e8edef", "#617783"], "Utkast": ["#f3ecdf", "#8a6e42"], "Ersatt": ["#ecece8", "#74786f"], "Accepterad": ["#e6ebe3", "#536851"], "Avböjd": ["#f3e6e2", "#8b584f"], "Utgången": ["#ecece8", "#74786f"], "Återkallad": ["#ecece8", "#74786f"], "Vunnet": ["#e6ebe3", "#536851"], "Prisförfrågan": ["#e8edef", "#617783"], "Förhandling": ["#f3ecdf", "#8a6e42"], "Pris godkänt": ["#e6ebe3", "#536851"], "Första pris": ["#e8edef", "#617783"], "Förhandlat": ["#f3ecdf", "#8a6e42"], "Godkänt": ["#e6ebe3", "#536851"], "Väntar orderunderlag": ["#f3ecdf", "#8a6e42"], "Orderbekräftad": ["#e8edef", "#617783"], "Produktion": ["#e8edef", "#617783"], "Klar för leverans": ["#f3ecdf", "#8a6e42"], "Levererad": ["#e6ebe3", "#536851"], "Avslutad": ["#e6ebe3", "#536851"] }[status] || ["#ecece8", "#666"]);
+  const statusTone = status => ({ "Aktivt": ["#e8edef", "#617783"], "Konverterat": ["#e6ebe3", "#536851"], "Ny": ["#e8edef", "#617783"], "Bedöms": ["#f3ecdf", "#8a6e42"], "Go": ["#e6ebe3", "#536851"], "No Go": ["#f3e6e2", "#8b584f"], "Skickad": ["#e8edef", "#617783"], "Utkast": ["#f3ecdf", "#8a6e42"], "Ersatt": ["#ecece8", "#74786f"], "Accepterad": ["#e6ebe3", "#536851"], "Avböjd": ["#f3e6e2", "#8b584f"], "Utgången": ["#ecece8", "#74786f"], "Återkallad": ["#ecece8", "#74786f"], "Vunnet": ["#e6ebe3", "#536851"], "Förfrågan": ["#e8edef", "#617783"], "Förhandlas": ["#f3ecdf", "#8a6e42"], "Godkänt": ["#e6ebe3", "#536851"], "Prisförfrågan": ["#e8edef", "#617783"], "Förhandling": ["#f3ecdf", "#8a6e42"], "Pris godkänt": ["#e6ebe3", "#536851"], "Första pris": ["#e8edef", "#617783"], "Förhandlat": ["#f3ecdf", "#8a6e42"], "Väntar orderunderlag": ["#f3ecdf", "#8a6e42"], "Orderbekräftad": ["#e8edef", "#617783"], "Produktion": ["#e8edef", "#617783"], "Klar för leverans": ["#f3ecdf", "#8a6e42"], "Levererad": ["#e6ebe3", "#536851"], "Avslutad": ["#e6ebe3", "#536851"] }[status] || ["#ecece8", "#666"]);
 
   function saveState() { store.save(); }
   function statusBadge(status) { const [bg, color] = statusTone(status); return `<span class="status" style="--status-bg:${bg};--status-color:${color}">${status}</span>`; }
@@ -88,8 +93,20 @@
     if (article.shape === "Rund") return Math.PI * Math.pow((Number(article.widthCm) || 0) / 200, 2);
     return ((Number(article.widthCm) || 0) * (Number(article.lengthCm) || 0)) / 10000;
   }
-  function articleUnitCost(article) { return articleArea(article) * (Number(article.pricePerSqm) || 0) + (Number(article.additionalCost) || 0); }
-  function articleCost(article) { return articleUnitCost(article) * (Number(article.quantity) || 1); }
+  function articleUnitCost(article) {
+    const price = Number(article.pricePerSqm) || 0;
+    const extra = Number(article.additionalCost) || 0;
+    const unit = article.priceUnit || "per m²";
+    if (unit === "per styck") return price + extra;
+    if (unit === "fast pris") return price + extra;
+    return articleArea(article) * price + extra;
+  }
+  function articleCost(article) {
+    const quantity = Number(article.quantity) || 1;
+    if ((article.priceUnit || "per m²") === "fast pris") return articleUnitCost(article);
+    return articleUnitCost(article) * quantity;
+  }
+  function priceUnitLabel(unit) { return unit === "per styck" ? "/st" : unit === "fast pris" ? " fast" : "/m²"; }
   function articleTotalArea(article) { return articleArea(article) * (Number(article.quantity) || 1); }
   function projectCalculation(project, articles) {
     const calc = project.calculation || {};
@@ -119,7 +136,7 @@
   }
 
   function renderAll() {
-    renderMetrics(); renderDashboardLeads(); renderLeads(); renderDashboardInquiries(); renderInquiries(); renderProjects(); renderArticles(); renderQuotations(); renderAgents(); renderSettings();
+    renderMetrics(); renderDashboardLeads(); renderLeads(); renderDashboardInquiries(); renderInquiries(); renderProjects(); renderArticles(); renderQuotations(); renderAgents(); renderManufacturers(); renderSettings();
     $("#leadNavCount").textContent = state.leads.filter(lead => lead.status === "Aktivt").length;
     $("#inquiryNavCount").textContent = state.inquiries.filter(i => ["Ny", "Bedöms"].includes(i.status)).length;
     $("#articleNavCount").textContent = state.articles.length;
@@ -192,15 +209,53 @@
   }
 
   function inquiryRow(i, compact = false) {
-    return `<tr><td><button class="id-link" data-inquiry-id="${i.id}">${i.id}</button></td><td><span class="cell-primary">${i.project}</span><span class="cell-secondary">${i.customer}</span></td><td>${i.country}</td><td><span class="source-tag">${i.source}</span></td>${compact ? "" : `<td>${i.agent}</td>`}<td>${money(i.value, i.currency)}</td>${compact ? "" : `<td><strong>${i.probability} %</strong><div class="progress" style="--progress:${i.probability}%"><span></span></div></td>`}<td>${statusBadge(i.status)}</td><td>${date(compact ? i.received : i.decision)}</td><td><button class="row-menu" data-inquiry-id="${i.id}" aria-label="Öppna">•••</button></td></tr>`;
+    return `<tr><td><button class="id-link" data-inquiry-id="${i.id}">${i.id}</button></td><td><span class="cell-primary">${i.project}</span><span class="cell-secondary">${i.customer}</span></td><td>${i.country}</td><td><span class="source-tag">${i.source}</span></td>${compact ? "" : `<td>${i.agent}</td>`}<td>${money(i.value, i.currency)}</td>${compact ? "" : `<td><strong>${i.probability} %</strong><div class="progress" style="--progress:${i.probability}%"><span></span></div></td>`}<td>${statusBadge(i.status)}</td><td>${date(compact ? i.received : (i.decisionAt || i.decision))}</td><td><button class="row-menu" data-inquiry-id="${i.id}" aria-label="Öppna">•••</button></td></tr>`;
   }
-  function renderDashboardInquiries() { $("#dashboardInquiryRows").innerHTML = state.inquiries.slice(0, 4).map(i => inquiryRow(i, true)).join(""); }
+  function scopeRowArea(row) {
+    const width=Number(row.widthCm)||0, length=Number(row.lengthCm)||0, qty=Math.max(1,Number(row.quantity)||1);
+    return width>0 && length>0 ? (width/100)*(length/100)*qty : 0;
+  }
+  function scopeTotals(rows=[]) {
+    return rows.reduce((acc,row)=>{ acc.items += Math.max(1,Number(row.quantity)||1); acc.area += scopeRowArea(row); return acc; },{items:0,area:0});
+  }
+  function inquiryTabs(i, tab) {
+    const scopeCount=(i.preliminaryScope||[]).length;
+    return `<div class="project-tabs inquiry-tabs"><button class="project-tab ${tab==="overview"?"active":""}" data-inquiry-tab="overview" data-id="${i.id}">Översikt</button><button class="project-tab ${tab==="customer"?"active":""}" data-inquiry-tab="customer" data-id="${i.id}">Kund</button><button class="project-tab ${tab==="scope"?"active":""}" data-inquiry-tab="scope" data-id="${i.id}">Preliminär omfattning (${scopeCount})</button><button class="project-tab ${tab==="files"?"active":""}" data-inquiry-tab="files" data-id="${i.id}">Design & filer</button></div>`;
+  }
+  function inquiryScopeRow(row={}, index=0, disabled=false) {
+    return `<tr data-scope-row><td><select name="scopeType" ${disabled?"disabled":""}><option ${row.type!=="Tapestry"&&row.type!=="Other"?"selected":""}>Rug</option><option ${row.type==="Tapestry"?"selected":""}>Tapestry</option><option ${row.type==="Other"?"selected":""}>Other</option></select></td><td><input name="scopeDescription" value="${esc(row.description||"")}" placeholder="Guest room rug" ${disabled?"disabled":""}></td><td><input name="scopeQuantity" type="number" min="1" step="1" value="${Number(row.quantity)||1}" ${disabled?"disabled":""}></td><td><input name="scopeWidth" type="number" min="0" step="1" value="${Number(row.widthCm)||""}" placeholder="200" ${disabled?"disabled":""}></td><td><input name="scopeLength" type="number" min="0" step="1" value="${Number(row.lengthCm)||""}" placeholder="300" ${disabled?"disabled":""}></td><td class="scope-area">${decimal(scopeRowArea(row))} m²</td><td><input name="scopeComment" value="${esc(row.comment||"")}" placeholder="Custom colour" ${disabled?"disabled":""}></td><td>${disabled?"":`<button type="button" class="row-menu" data-remove-scope-row aria-label="Ta bort">×</button>`}<input type="hidden" name="scopeId" value="${esc(row.id||"")}"></td></tr>`;
+  }
+  function updateInquiryScopeSummary(form) {
+    if(!form) return; let items=0,area=0;
+    $$('[data-scope-row]',form).forEach(row=>{ const qty=Math.max(1,Number($('[name="scopeQuantity"]',row)?.value)||1),w=Number($('[name="scopeWidth"]',row)?.value)||0,l=Number($('[name="scopeLength"]',row)?.value)||0; items+=qty; const a=w>0&&l>0?(w/100)*(l/100)*qty:0; area+=a; const cell=$('.scope-area',row); if(cell) cell.textContent=`${decimal(a)} m²`; });
+    const out=$('[data-scope-summary]',form); if(out) out.textContent=`Estimated scope: ${items} items · approx. ${decimal(area)} m²`;
+  }
+
+  function renderDashboardInquiries() { $("#dashboardInquiryRows").innerHTML = state.inquiries.filter(i => ["Ny", "Bedöms"].includes(i.status)).slice(0, 4).map(i => inquiryRow(i, true)).join("") || `<tr><td colspan="8">Inga aktiva förfrågningar just nu.</td></tr>`; }
   function renderInquiries() {
     const term = $("#inquirySearch")?.value.trim().toLowerCase() || "";
-    const status = $("#inquiryStatusFilter")?.value || "all"; const source = $("#inquirySourceFilter")?.value || "all";
-    const filtered = state.inquiries.filter(i => (!term || [i.id,i.project,i.customer,i.country,i.agent].join(" ").toLowerCase().includes(term)) && (status === "all" || i.status === status) && (source === "all" || i.source === source));
-    $("#inquiryRows").innerHTML = filtered.map(i => inquiryRow(i)).join("") || `<tr><td colspan="10">Inga förfrågningar matchar filtret.</td></tr>`;
-    $("#inquiryResultCount").textContent = `${filtered.length} av ${state.inquiries.length} förfrågningar`;
+    const status = $("#inquiryStatusFilter")?.value || "all";
+    const source = $("#inquirySourceFilter")?.value || "all";
+    const activeStatuses = ["Ny", "Bedöms"];
+    const archiveStatuses = ["Go", "No Go"];
+    const modeStatuses = inquiryMode === "archive" ? archiveStatuses : activeStatuses;
+    const base = state.inquiries.filter(i => modeStatuses.includes(i.status));
+    const filtered = base.filter(i => (!term || [i.id,i.project,i.customer,i.country,i.agent].join(" ").toLowerCase().includes(term)) && (status === "all" || i.status === status) && (source === "all" || i.source === source));
+    $("#inquiryRows").innerHTML = filtered.map(i => inquiryRow(i)).join("") || `<tr><td colspan="10">${inquiryMode === "archive" ? "Inga arkiverade förfrågningar matchar filtret." : "Inga aktiva förfrågningar matchar filtret."}</td></tr>`;
+    $("#inquiryResultCount").textContent = `${filtered.length} av ${base.length} ${inquiryMode === "archive" ? "arkiverade" : "aktiva"} förfrågningar`;
+    const activeCount = state.inquiries.filter(i => activeStatuses.includes(i.status)).length;
+    const archiveCount = state.inquiries.filter(i => archiveStatuses.includes(i.status)).length;
+    if ($("#activeInquiryCount")) $("#activeInquiryCount").textContent = `(${activeCount})`;
+    if ($("#archiveInquiryCount")) $("#archiveInquiryCount").textContent = `(${archiveCount})`;
+    $$('[data-inquiry-mode]').forEach(button => button.classList.toggle("active", button.dataset.inquiryMode === inquiryMode));
+    const statusSelect = $("#inquiryStatusFilter");
+    if (statusSelect) {
+      [...statusSelect.options].forEach(option => {
+        if (option.value === "all") { option.hidden = false; return; }
+        option.hidden = !modeStatuses.includes(option.value);
+      });
+      if (statusSelect.value !== "all" && !modeStatuses.includes(statusSelect.value)) statusSelect.value = "all";
+    }
   }
 
   function renderProjects() {
@@ -219,7 +274,7 @@
 
   function articleRow(article, compact = false) {
     const project = state.projects.find(p=>p.id===article.projectId);
-    return `<tr><td><button class="id-link" data-article-id="${article.id}">${article.code}</button></td>${compact ? "" : `<td><span class="cell-primary">${project?.name || "—"}</span><span class="cell-secondary">${article.projectId}</span></td>`}<td><span class="cell-primary">${article.name}</span><span class="cell-secondary">${article.location || "—"}</span></td><td><span class="size-value">${articleSize(article)}</span></td><td>${decimal(articleArea(article))}</td><td>${article.manufacturer || "—"}</td><td>${article.pricePerSqm ? `${money(article.pricePerSqm, article.currency)}/m²` : "—"}</td><td><span class="cost-value">${money(articleCost(article), article.currency)}</span></td><td>${statusBadge(article.status)}</td><td><button class="row-menu" data-article-id="${article.id}">•••</button></td></tr>`;
+    return `<tr><td><button class="id-link" data-article-id="${article.id}">${article.code}</button></td>${compact ? "" : `<td><span class="cell-primary">${project?.name || "—"}</span><span class="cell-secondary">${article.projectId}</span></td>`}<td><span class="cell-primary">${article.name}</span><span class="cell-secondary">${article.location || "—"}</span></td><td><span class="size-value">${articleSize(article)}</span></td><td>${decimal(articleArea(article))}</td><td>${article.manufacturer || "—"}</td><td>${article.pricePerSqm ? `${money(article.pricePerSqm, article.currency)}${priceUnitLabel(article.priceUnit)}` : "—"}</td><td><span class="cost-value">${money(articleCost(article), article.currency)}</span></td><td>${statusBadge(article.status)}</td><td><button class="row-menu" data-article-id="${article.id}">•••</button></td></tr>`;
   }
 
   function populateArticleProjectFilter() {
@@ -237,7 +292,7 @@
       const project=state.projects.find(p=>p.id===a.projectId);
       return (!term || [a.code,a.name,a.location,a.manufacturer,project?.name].join(" ").toLowerCase().includes(term)) && (projectId==="all" || a.projectId===projectId) && (status==="all" || a.status===status);
     });
-    const totalArea=filtered.reduce((s,a)=>s+articleArea(a),0); const totalCost=filtered.reduce((s,a)=>s+articleCost(a),0); const awaiting=filtered.filter(a=>a.status!=="Pris godkänt").length;
+    const totalArea=filtered.reduce((s,a)=>s+articleArea(a),0); const totalCost=filtered.reduce((s,a)=>s+articleCost(a),0); const awaiting=filtered.filter(a=>a.status!=="Godkänt").length;
     $("#articleSummary").innerHTML = `<div class="summary-card"><span>Visade artiklar</span><strong>${filtered.length}</strong></div><div class="summary-card"><span>Total yta</span><strong>${decimal(totalArea)} m²</strong></div><div class="summary-card"><span>Produktionskostnad</span><strong>${money(totalCost)}</strong></div><div class="summary-card"><span>Pris ej godkänt</span><strong>${awaiting}</strong></div>`;
     $("#articleRows").innerHTML = filtered.map(a=>articleRow(a)).join("") || `<tr><td colspan="10">Inga artiklar matchar filtret.</td></tr>`;
     $("#articleResultCount").textContent = `${filtered.length} av ${state.articles.length} artiklar`;
@@ -257,6 +312,19 @@
   }
   function renderAgents() {
     $("#agentGrid").innerHTML = state.agents.map(a => `<article class="agent-card"><div class="agent-header"><div class="agent-logo">${a.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><h2>${a.name}</h2><p>${a.contact} · ${a.country} · Provision ${a.commission}%</p></div>${statusBadge(a.active ? "Aktiv" : "Inaktiv")}</div><div class="agent-stats"><div><strong>${a.inquiries}</strong><span>Förfrågningar</span></div><div><strong>${a.projects}</strong><span>Projekt</span></div><div><strong>${money(a.value).replace(/,00/,"")}</strong><span>Vunnet</span></div></div></article>`).join("");
+  }
+
+  function renderManufacturers() {
+    const grid = $("#manufacturerGrid"); if (!grid) return;
+    grid.innerHTML = state.manufacturers.map(m => {
+      const articleCount = state.articles.filter(a => (a.manufacturerId && a.manufacturerId === m.id) || (!a.manufacturerId && a.manufacturer === m.name)).length;
+      return `<article class="agent-card"><div class="agent-header"><div class="agent-logo">${esc(m.name).split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><h2>${esc(m.name)}</h2><p>${esc(m.contact||"Ingen kontaktperson")} · ${esc(m.country||"—")}</p></div>${statusBadge(m.active!==false ? "Aktiv" : "Inaktiv")}</div><div class="agent-stats"><div><strong>${articleCount}</strong><span>Artiklar</span></div><div><strong>${esc(m.currency||"EUR")}</strong><span>Standardvaluta</span></div><div><strong>${esc(m.email||"—")}</strong><span>E-mail</span></div></div><button class="text-button" data-edit-manufacturer="${m.id}">Ändra →</button></article>`;
+    }).join("") || `<div class="empty-state"><h2>Inga tillverkare registrerade</h2><p>Lägg till den första tillverkaren.</p></div>`;
+  }
+
+  function openManufacturerForm(manufacturer = null) {
+    const editing = Boolean(manufacturer);
+    openModal(`<form id="manufacturerForm" ${editing?`data-edit-id="${manufacturer.id}"`:""}><div class="modal-header"><div><h2 id="modalTitle">${editing?"Ändra tillverkare":"Ny tillverkare"}</h2><p>Tillverkaren kan väljas på projektartiklar och leverantörspriser.</p></div><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body"><div class="form-grid"><label class="field full"><span>Namn *</span><input name="name" required value="${esc(manufacturer?.name||"")}"></label><label class="field"><span>Land</span><input name="country" value="${esc(manufacturer?.country||"")}"></label><label class="field"><span>Kontaktperson</span><input name="contact" value="${esc(manufacturer?.contact||"")}"></label><label class="field"><span>E-mail</span><input name="email" type="email" value="${esc(manufacturer?.email||"")}"></label><label class="field"><span>Telefon</span><input name="phone" value="${esc(manufacturer?.phone||"")}"></label><label class="field"><span>Standardvaluta</span><select name="currency"><option ${manufacturer?.currency!=="USD"?"selected":""}>EUR</option><option ${manufacturer?.currency==="USD"?"selected":""}>USD</option></select></label><label class="field checkbox-field"><span>Aktiv</span><input name="active" type="checkbox" ${manufacturer?.active!==false?"checked":""}></label></div></div><div class="modal-footer"><button type="button" class="button secondary" data-close>Avbryt</button><button class="button primary">Spara tillverkare</button></div></form>`);
   }
 
   function openModal(html, small = false) { const modal = $("#modal"); const backdrop = $("#modalBackdrop"); if (!modal || !backdrop) { console.error("Modal container missing"); return; } modal.className = `modal${small ? " small" : ""}`; modal.innerHTML = html; backdrop.hidden = false; setTimeout(()=>$("input, select, textarea", modal)?.focus(), 20); }
@@ -281,6 +349,8 @@
       ${lead ? `<input type="hidden" name="sourceLeadId" value="${lead.id}"><input type="hidden" name="expectedStart" value="${esc(lead.expectedStart || "")}">` : ""}
       <label class="field full"><span>Projektnamn *</span><input name="project" required value="${esc(lead?.name || "")}" placeholder="Exempel: Grand Hôtel – Lobby Rugs"></label>
       <label class="field"><span>Kund / beställare *</span><input name="customer" required></label><label class="field"><span>Land *</span><input name="country" required></label>
+      <label class="field"><span>Kontaktperson</span><input name="contact"></label><label class="field"><span>E-mail</span><input name="email" type="email"></label>
+      <label class="field"><span>Telefon</span><input name="phone"></label><label class="field"><span>City</span><input name="city"></label>
       <label class="field"><span>Källa</span><select name="source"><option ${lead ? "selected" : ""}>Lead</option><option ${lead ? "" : "selected"}>Direkt</option><option>Agent</option><option>Arkitekt</option><option>Designer</option><option>Befintlig kund</option><option>Annat</option></select></label><label class="field"><span>Agent</span><select name="agent"><option>—</option>${state.agents.map(a=>`<option>${esc(a.name)}</option>`).join("")}</select></label>
       <label class="field"><span>Uppskattat värde, EUR</span><input name="value" type="number" min="0" value="0"></label><label class="field"><span>Uppskattad yta, m²</span><input name="area" type="number" min="0"></label>
       <label class="field"><span>Projekttyp</span><select name="type"><option>High End</option><option>Standard</option><option>Kontor</option></select></label><label class="field"><span>Förväntat beslut</span><input name="decision" type="date"></label>
@@ -301,18 +371,45 @@
     return inquiry;
   }
 
-  function openInquiry(id) {
+  function openInquiry(id, tab = "overview") {
     const i = state.inquiries.find(x=>x.id===id); if (!i) return;
     const converted = i.status === "Go" && i.projectId;
-    const decisionActions = converted
-      ? `<button type="button" class="go" data-project-id="${i.projectId}">✓ GO – öppna projekt ${i.projectId}</button>`
-      : `<button type="button" class="go" data-decision="go" data-id="${i.id}">✓ GO – skapa projekt</button><button type="button" class="no-go" data-decision="no-go" data-id="${i.id}">× NO GO</button>`;
-    const footerAction = converted ? "" : `<button type="button" class="button secondary" data-save-assessment="${i.id}">Spara bedömning</button>`;
-    openModal(`<div class="modal-header"><div><h2 id="modalTitle">Förfrågan</h2><p>Bedöm affärsmöjligheten innan den konverteras till projekt.</p></div><button class="modal-close" data-close>×</button></div><div class="modal-body"><div class="detail-top"><div><span class="detail-id">${i.id}</span><div class="detail-title">${i.project}</div><div class="detail-sub">${i.customer} · ${i.country}</div></div>${statusBadge(i.status)}</div>
-      <div class="detail-grid"><div class="detail-stat"><span>Uppskattat värde</span><strong>${money(i.value,i.currency)}</strong></div><div class="detail-stat"><span>Källa</span><strong>${i.source}${i.agent !== "—" ? ` · ${i.agent}` : ""}</strong></div><div class="detail-stat"><span>Förväntat beslut</span><strong>${date(i.decision)}</strong></div></div>
-      <p class="detail-sub">${i.description || "Ingen beskrivning registrerad."}</p>
-      <div class="qualification"><h3>Kvalificering</h3><div class="form-grid"><label class="field"><span>Sannolikhet</span><div class="input-suffix"><input id="qualificationProbability" type="number" min="0" max="100" value="${i.probability}" ${converted?"disabled":""}><span>%</span></div></label><label class="field"><span>Pågående status</span><select id="qualificationStatus" ${converted?"disabled":""}><option ${i.status==="Ny"?"selected":""}>Ny</option><option ${i.status==="Bedöms"?"selected":""}>Bedöms</option><option ${i.status==="Go"?"selected":""}>Go</option></select></label></div>
-      <div class="decision-buttons">${decisionActions}</div></div></div><div class="modal-footer">${footerAction}<button class="button primary" data-close>Stäng</button></div>`);
+    const archived = ["Go", "No Go"].includes(i.status);
+    const readOnly = archived;
+    const cd = i.customerData || {};
+    const scope = i.preliminaryScope || [];
+    const totals = scopeTotals(scope);
+    let content = "";
+
+    if (tab === "customer") {
+      content = `<form id="inquiryCustomerForm" data-inquiry-id="${i.id}"><div class="section-action"><div><h3>Kunduppgifter</h3><span class="cell-secondary">Grunduppgifter följer med automatiskt när förfrågan blir projekt.</span></div></div><div class="form-grid">
+        <label class="field full"><span>Företag / kundnamn</span><input name="name" value="${esc(cd.name||i.customer||"")}" ${readOnly?"disabled":""}></label>
+        <label class="field"><span>Kontaktperson</span><input name="contact" value="${esc(cd.contact||"")}" ${readOnly?"disabled":""}></label><label class="field"><span>E-mail</span><input name="email" type="email" value="${esc(cd.email||"")}" ${readOnly?"disabled":""}></label>
+        <label class="field"><span>Telefon</span><input name="phone" value="${esc(cd.phone||"")}" ${readOnly?"disabled":""}></label><label class="field"><span>VAT number</span><input name="vatNumber" value="${esc(cd.vatNumber||"")}" ${readOnly?"disabled":""}></label>
+        <label class="field full"><span>Adress</span><input name="address" value="${esc(cd.address||"")}" ${readOnly?"disabled":""}></label><label class="field"><span>ZIP</span><input name="zip" value="${esc(cd.zip||"")}" ${readOnly?"disabled":""}></label><label class="field"><span>City</span><input name="city" value="${esc(cd.city||"")}" ${readOnly?"disabled":""}></label><label class="field"><span>Country</span><input name="country" value="${esc(cd.country||i.country||"")}" ${readOnly?"disabled":""}></label>
+      </div>${readOnly?`<p class="article-form-note">Förfrågan är konverterad. Kunduppgifter ändras nu i projektet.</p>`:`<div class="inline-actions"><button class="button primary">Spara kunduppgifter</button></div>`}</form>`;
+    } else if (tab === "scope") {
+      content = `<form id="inquiryScopeForm" data-inquiry-id="${i.id}"><div class="section-action"><div><h3>Preliminär omfattning</h3><span class="cell-secondary">Grov uppskattning – behöver inte vara exakt. Raderna följer med till projektet.</span></div>${readOnly?"":`<button type="button" class="button primary" data-add-inquiry-scope>＋ Ny rad</button>`}</div>
+        <div class="table-scroll"><table class="scope-table"><thead><tr><th>Typ</th><th>Beskrivning</th><th>Antal</th><th>Bredd cm</th><th>Längd cm</th><th>Ca m²</th><th>Kommentar</th><th></th></tr></thead><tbody data-scope-body>${scope.length?scope.map((row,index)=>inquiryScopeRow(row,index,readOnly)).join(""):(readOnly?`<tr><td colspan="8" class="detail-sub">Ingen preliminär omfattning registrerad.</td></tr>`:inquiryScopeRow({},0,false))}</tbody></table></div>
+        <div class="scope-summary" data-scope-summary>Estimated scope: ${totals.items} items · approx. ${decimal(totals.area)} m²</div>
+        ${readOnly?`<p class="article-form-note">Förfrågan är konverterad. Omfattningen finns nu som underlag i projektet.</p>`:`<div class="inline-actions"><button class="button primary">Spara omfattning</button></div>`}</form>`;
+      setTimeout(()=>updateInquiryScopeSummary($("#inquiryScopeForm")),20);
+    } else if (tab === "files") {
+      content = `<div class="section-action"><div><h3>Design & filer</h3><span class="cell-secondary">Skisser, renderings, moodboards, ritningar och kundbrief.</span></div></div><div class="empty-state file-placeholder" style="min-height:230px"><div class="empty-icon">▧</div><h2>Filuppladdning förbereds</h2><p>Vi sparar inte bildfiler i localStorage eftersom det snabbt fyller webbläsarens lagringsutrymme. Den här delen kopplas till extern fillagring (t.ex. Supabase Storage) när databasen ansluts.</p></div>`;
+    } else {
+      const decisionActions = converted
+        ? `<button type="button" class="go" data-project-id="${i.projectId}">✓ GO – öppna projekt ${i.projectId}</button>`
+        : i.status === "No Go"
+          ? `<button type="button" class="go" data-reactivate-inquiry="${i.id}">↺ Återaktivera förfrågan</button>`
+          : `<button type="button" class="go" data-decision="go" data-id="${i.id}">✓ GO – skapa projekt</button><button type="button" class="no-go" data-decision="no-go" data-id="${i.id}">× NO GO</button>`;
+      const footerAction = archived ? "" : `<button type="button" class="button secondary" data-save-assessment="${i.id}">Spara bedömning</button>`;
+      content = `<div class="detail-top"><div><span class="detail-id">${i.id}</span><div class="detail-title">${i.project}</div><div class="detail-sub">${i.customer} · ${i.country}</div></div>${statusBadge(i.status)}</div>
+        <div class="detail-grid"><div class="detail-stat"><span>Uppskattat värde</span><strong>${money(i.value,i.currency)}</strong></div><div class="detail-stat"><span>Källa</span><strong>${i.source}${i.agent !== "—" ? ` · ${i.agent}` : ""}</strong></div><div class="detail-stat"><span>Preliminär omfattning</span><strong>${totals.items} st · ${decimal(totals.area)} m²</strong></div></div>
+        <p class="detail-sub">${i.description || "Ingen beskrivning registrerad."}</p>
+        <div class="qualification"><h3>Kvalificering</h3><div class="form-grid"><label class="field"><span>Sannolikhet</span><div class="input-suffix"><input id="qualificationProbability" type="number" min="0" max="100" value="${i.probability}" ${converted?"disabled":""}><span>%</span></div></label><label class="field"><span>Pågående status</span><select id="qualificationStatus" ${converted?"disabled":""}><option ${i.status==="Ny"?"selected":""}>Ny</option><option ${i.status==="Bedöms"?"selected":""}>Bedöms</option><option ${i.status==="Go"?"selected":""}>Go</option><option ${i.status==="No Go"?"selected":""}>No Go</option></select></label></div><div class="decision-buttons">${decisionActions}</div></div><div class="inquiry-footer-actions">${footerAction}</div>`;
+    }
+
+    openModal(`<div class="modal-header"><div><h2 id="modalTitle">Förfrågan</h2><p>${esc(i.id)} · ${esc(i.project)}</p></div><button class="modal-close" data-close>×</button></div><div class="modal-body">${inquiryTabs(i,tab)}<div class="project-tab-content">${content}</div></div><div class="modal-footer"><button class="button primary" data-close>Stäng</button></div>`);
   }
 
   function convertToProject(id) {
@@ -348,7 +445,11 @@
     const versions=state.quotations.filter(q=>q.projectId===id); const articles=state.articles.filter(a=>a.projectId===id);
     const totalArea=articles.reduce((s,a)=>s+articleTotalArea(a),0); const productionCost=articles.reduce((s,a)=>s+articleCost(a),0);
     let content="";
-    if (tab === "articles") content = `<div class="section-action"><div><h3>Projektartiklar</h3><span class="cell-secondary">${articles.length} artiklar · ${decimal(totalArea)} m² · ${money(productionCost)} produktionskostnad</span></div><button class="button primary" data-new-article-project="${p.id}">＋ Ny artikel</button></div>${articles.length ? `<div class="table-scroll"><table><thead><tr><th>Artikel</th><th>Benämning</th><th>Storlek</th><th>Kvm</th><th>Tillverkare</th><th>Pris/kvm</th><th>Kostnad</th><th>Status</th><th></th></tr></thead><tbody>${articles.map(a=>articleRow(a,true)).join("")}</tbody></table></div>` : `<div class="empty-state" style="min-height:210px"><div class="empty-icon">◫</div><h2>Inga artiklar ännu</h2><p>Lägg till den första artikeln för att börja förhandla pris/kvm.</p></div>`}`;
+    if (tab === "articles") {
+      const preliminary=p.preliminaryScope||[]; const preTotals=scopeTotals(preliminary);
+      const preliminaryBlock=preliminary.length?`<div class="preliminary-scope"><div class="section-action"><div><h3>Preliminary scope from inquiry</h3><span class="cell-secondary">${preTotals.items} items · approx. ${decimal(preTotals.area)} m². Använd som underlag – uppgifterna är preliminära.</span></div></div><div class="table-scroll"><table><thead><tr><th>Typ</th><th>Beskrivning</th><th>Antal</th><th>Ca storlek</th><th>Ca m²</th><th>Kommentar</th><th></th></tr></thead><tbody>${preliminary.map(row=>`<tr><td>${esc(row.type||"Rug")}</td><td>${esc(row.description||"—")}</td><td>${Number(row.quantity)||1}</td><td>${row.widthCm&&row.lengthCm?`${row.widthCm} × ${row.lengthCm} cm`:"—"}</td><td>${decimal(scopeRowArea(row))}</td><td>${esc(row.comment||"")}</td><td>${row.convertedArticleId?`<span class="cell-secondary">→ ${esc(row.convertedArticleId)}</span>`:`<button class="text-button" data-create-article-from-scope="${esc(row.id)}" data-project-id-ref="${p.id}">Skapa artikel</button>`}</td></tr>`).join("")}</tbody></table></div></div>`:"";
+      content = `${preliminaryBlock}<div class="section-action"><div><h3>Projektartiklar</h3><span class="cell-secondary">${articles.length} artiklar · ${decimal(totalArea)} m² · ${money(productionCost)} produktionskostnad</span></div><button class="button primary" data-new-article-project="${p.id}">＋ Ny artikel</button></div>${articles.length ? `<div class="table-scroll"><table><thead><tr><th>Artikel</th><th>Benämning</th><th>Storlek</th><th>Kvm</th><th>Tillverkare</th><th>Produktionspris</th><th>Kostnad</th><th>Prisstatus</th><th></th></tr></thead><tbody>${articles.map(a=>articleRow(a,true)).join("")}</tbody></table></div>` : `<div class="empty-state" style="min-height:210px"><div class="empty-icon">◫</div><h2>Inga artiklar ännu</h2><p>Lägg till den första artikeln eller skapa en artikel från den preliminära omfattningen ovan.</p></div>`}`;
+    }
     else if (tab === "customer") {
       const cd=p.customerData||{}; const b=cd.billing||{}; const d=cd.delivery||{};
       content = `<form id="projectCustomerForm" data-project-id="${p.id}"><div class="section-action"><div><h3>Kund- & adressuppgifter</h3><span class="cell-secondary">Dessa uppgifter används i nya offertversioner.</span></div></div>
@@ -360,7 +461,7 @@
     else if (tab === "calculation") {
       const calc=p.calculation||{}; const pc=projectCalculation(p,articles);
       content = `<form id="calculationForm" data-project-id="${p.id}"><div class="section-action"><div><h3>Intern kalkyl</h3><span class="cell-secondary">Produktionskostnad + leverans + importkostnader → målmargin → offertpris.</span></div>${statusBadge(p.phase)}</div>
-      <div class="calc-section"><h4>1. Produktionskostnad</h4><div class="calc-preview"><div><span>Artiklar</span><strong>${articles.length}</strong></div><div><span>Total yta</span><strong>${decimal(totalArea)} m²</strong></div><div><span>Produktion</span><strong>${money(pc.productionCost,p.currency)}</strong></div></div><button type="button" class="button secondary" data-project-tab="articles" data-id="${p.id}">Hantera artiklar</button></div>
+      <div class="calc-section"><h4>1. Produktionskostnad</h4><div class="calc-preview"><div><span>Artiklar</span><strong>${articles.length}</strong></div><div><span>Total yta</span><strong>${decimal(totalArea)} m²</strong></div><div><span>Produktion</span><strong>${money(pc.productionCost,p.currency)}</strong></div></div>${articles.some(a=>a.status!=="Godkänt")?`<p class="article-form-note"><strong>Obs:</strong> ${articles.filter(a=>a.status!=="Godkänt").length} artikelpris är inte godkänt. Kalkylen använder ändå aktuellt registrerat pris.</p>`:`<p class="article-form-note">Alla artikelpriser är godkända.</p>`}<button type="button" class="button secondary" data-project-tab="articles" data-id="${p.id}">Hantera artiklar</button></div>
       <div class="calc-section"><h4>2. Leverans & import</h4><div class="form-grid"><label class="field"><span>Leveransvillkor</span><select name="deliveryTerm" data-calc-live><option ${calc.deliveryTerm!=="DDP"?"selected":""}>DAP</option><option ${calc.deliveryTerm==="DDP"?"selected":""}>DDP</option></select></label><label class="field"><span>Destination</span><input name="destination" value="${esc(calc.destination||p.country||"")}"></label><label class="field"><span>Vår fraktkostnad</span><input name="freightCost" data-calc-live type="number" min="0" step="0.01" value="${Number(calc.freightCost)||0}"></label><label class="field"><span>Tull (DDP)</span><input name="dutyCost" data-calc-live type="number" min="0" step="0.01" value="${Number(calc.dutyCost)||0}"></label><label class="field"><span>Importmoms (DDP)</span><input name="importVatCost" data-calc-live type="number" min="0" step="0.01" value="${Number(calc.importVatCost)||0}"></label><label class="field checkbox-field"><span>Importmoms som kostnad</span><input name="includeImportVatInCost" data-calc-live type="checkbox" ${calc.includeImportVatInCost?"checked":""}></label><label class="field"><span>Övriga importkostnader</span><input name="otherImportCost" data-calc-live type="number" min="0" step="0.01" value="${Number(calc.otherImportCost)||0}"></label></div></div>
       <div class="calc-section"><h4>3. Pris & marginal</h4><div class="form-grid"><label class="field"><span>Önskad marginal, %</span><input name="targetMargin" data-calc-live type="number" min="0" max="95" step="0.1" value="${Number(calc.targetMargin)||45}"></label><label class="field"><span>Frakt på kundoffert</span><select name="freightPresentation"><option ${calc.freightPresentation!=="Ingår i produktpris"?"selected":""}>Separat rad</option><option ${calc.freightPresentation==="Ingår i produktpris"?"selected":""}>Ingår i produktpris</option></select></label><label class="field"><span>Debiterad frakt till kund</span><input name="customerFreight" type="number" min="0" step="0.01" value="${Number(calc.customerFreight)||0}"></label><label class="field"><span>Giltighet, dagar</span><input name="validityDays" type="number" min="1" value="${Number(calc.validityDays)||30}"></label><label class="field"><span>Betalningsvillkor</span><input name="paymentTerms" value="${esc(calc.paymentTerms||"")}"></label><label class="field"><span>Leveranstid</span><input name="deliveryTime" value="${esc(calc.deliveryTime||"")}" placeholder="Exempel: 14–16 veckor"></label><label class="field full"><span>Offertkommentar / undantag</span><textarea name="notes">${esc(calc.notes||"")}</textarea></label></div>
       <div class="calc-summary" data-calc-summary><div><span>Produktionskostnad</span><strong>${money(pc.productionCost,p.currency)}</strong></div><div><span>Frakt</span><strong>${money(pc.freightCost,p.currency)}</strong></div><div><span>Tull/import</span><strong>${money(pc.dutyCost+pc.importVatCost+pc.otherImportCost,p.currency)}</strong></div><div><span>Total kostnad</span><strong>${money(pc.totalCost,p.currency)}</strong></div><div><span>Bruttovinst</span><strong>${money(pc.grossProfit,p.currency)}</strong></div><div class="calc-total"><span>Beräknat offertpris</span><strong>${money(pc.salesPrice,p.currency)}</strong><small>${decimal(pc.margin)} % marginal</small></div></div></div>
@@ -397,23 +498,27 @@
 
   function articleForm(article = {}, forcedProjectId = "") {
     const projectId=forcedProjectId || article.projectId || state.projects[0]?.id || "";
+    const status=article.status || "Förfrågan";
+    const currentManufacturer=article.manufacturerId || "";
+    const legacyManufacturer=article.manufacturer && article.manufacturer!=="—" ? article.manufacturer : "";
+    const manufacturerOptions = `<option value="">— Välj tillverkare —</option>` + state.manufacturers.filter(m=>m.active!==false || m.id===currentManufacturer).map(m=>`<option value="${m.id}" ${m.id===currentManufacturer || (!currentManufacturer && m.name===legacyManufacturer)?"selected":""}>${esc(m.name)}</option>`).join("");
     return `<div class="form-grid">
-      <label class="field"><span>Projekt *</span><select name="projectId" required>${state.projects.map(p=>`<option value="${p.id}" ${p.id===projectId?"selected":""}>${p.id} · ${p.name}</option>`).join("")}</select></label><label class="field"><span>Status</span><select name="status"><option ${article.status==="Prisförfrågan"?"selected":""}>Prisförfrågan</option><option ${article.status==="Förhandling"?"selected":""}>Förhandling</option><option ${article.status==="Pris godkänt"?"selected":""}>Pris godkänt</option></select></label>
+      <label class="field"><span>Projekt *</span><select name="projectId" required>${state.projects.map(p=>`<option value="${p.id}" ${p.id===projectId?"selected":""}>${p.id} · ${p.name}</option>`).join("")}</select></label><label class="field"><span>Prisstatus</span><select name="status"><option ${status==="Förfrågan"?"selected":""}>Förfrågan</option><option ${status==="Förhandlas"?"selected":""}>Förhandlas</option><option ${status==="Godkänt"?"selected":""}>Godkänt</option></select></label>
       <label class="field"><span>Benämning *</span><input name="name" required value="${article.name||""}" placeholder="Exempel: Lobby Rug"></label><label class="field"><span>Antal</span><input name="quantity" data-article-calc type="number" min="1" step="1" value="${article.quantity||1}"></label><label class="field"><span>Placering</span><input name="location" value="${article.location||""}" placeholder="Exempel: Main lobby"></label>
-      <label class="field"><span>Form</span><select name="shape" data-article-calc><option ${article.shape==="Rektangulär"?"selected":""}>Rektangulär</option><option ${article.shape==="Rund"?"selected":""}>Rund</option><option ${article.shape==="Specialform"?"selected":""}>Specialform</option></select></label><label class="field"><span>Tillverkare</span><input name="manufacturer" value="${article.manufacturer && article.manufacturer!=="—" ? article.manufacturer : ""}"></label>
+      <label class="field"><span>Form</span><select name="shape" data-article-calc><option ${article.shape==="Rektangulär"?"selected":""}>Rektangulär</option><option ${article.shape==="Rund"?"selected":""}>Rund</option><option ${article.shape==="Specialform"?"selected":""}>Specialform</option></select></label><label class="field"><span>Tillverkare</span><select name="manufacturerId">${manufacturerOptions}</select></label>
       <label class="field"><span>Bredd/diameter, cm</span><input name="widthCm" data-article-calc type="number" min="0" step="1" value="${article.widthCm||""}"></label><label class="field"><span>Längd, cm</span><input name="lengthCm" data-article-calc type="number" min="0" step="1" value="${article.lengthCm||""}"></label>
       <label class="field"><span>Manuell yta för specialform, m²</span><input name="manualArea" data-article-calc type="number" min="0" step="0.01" value="${article.manualArea||""}"></label><label class="field"><span>Valuta</span><select name="currency"><option ${article.currency!=="USD"?"selected":""}>EUR</option><option ${article.currency==="USD"?"selected":""}>USD</option></select></label>
-      <label class="field"><span>Aktuellt pris/kvm</span><input name="pricePerSqm" data-article-calc type="number" min="0" step="0.01" value="${article.pricePerSqm||""}"></label><label class="field"><span>Övrig kostnad</span><input name="additionalCost" data-article-calc type="number" min="0" step="0.01" value="${article.additionalCost||""}"></label>
-    </div><div class="calc-preview" id="articleCalcPreview"><div><span>Beräknad yta</span><strong data-preview-area>0,00 m²</strong></div><div><span>Pris/kvm</span><strong data-preview-price>€0</strong></div><div><span>Produktionskostnad totalt</span><strong data-preview-cost>€0</strong></div></div>`;
+      <label class="field"><span>Prisenhet</span><select name="priceUnit" data-article-calc><option ${article.priceUnit!=="per styck" && article.priceUnit!=="fast pris"?"selected":""}>per m²</option><option ${article.priceUnit==="per styck"?"selected":""}>per styck</option><option ${article.priceUnit==="fast pris"?"selected":""}>fast pris</option></select></label><label class="field"><span>Aktuellt produktionspris</span><input name="pricePerSqm" data-article-calc type="number" min="0" step="0.01" value="${article.pricePerSqm||""}"></label><label class="field"><span>Övrig kostnad</span><input name="additionalCost" data-article-calc type="number" min="0" step="0.01" value="${article.additionalCost||""}"></label>
+    </div><div class="calc-preview" id="articleCalcPreview"><div><span>Beräknad yta</span><strong data-preview-area>0,00 m²</strong></div><div><span>Produktionspris</span><strong data-preview-price>€0</strong></div><div><span>Produktionskostnad totalt</span><strong data-preview-cost>€0</strong></div></div>`;
   }
 
   function bindArticleCalculation(form) {
-    const update=()=>{ const values=Object.fromEntries(new FormData(form)); const draft={shape:values.shape,widthCm:Number(values.widthCm),lengthCm:Number(values.lengthCm),manualArea:Number(values.manualArea),pricePerSqm:Number(values.pricePerSqm),additionalCost:Number(values.additionalCost),quantity:Number(values.quantity)||1}; $("[data-preview-area]",form).textContent=`${decimal(articleArea(draft))} m²`; $("[data-preview-price]",form).textContent=money(draft.pricePerSqm,values.currency); $("[data-preview-cost]",form).textContent=money(articleCost(draft),values.currency); };
-    $$('[data-article-calc], select[name="currency"]',form).forEach(el=>el.addEventListener("input",update)); update();
+    const update=()=>{ const values=Object.fromEntries(new FormData(form)); const draft={shape:values.shape,widthCm:Number(values.widthCm),lengthCm:Number(values.lengthCm),manualArea:Number(values.manualArea),pricePerSqm:Number(values.pricePerSqm),priceUnit:values.priceUnit||"per m²",additionalCost:Number(values.additionalCost),quantity:Number(values.quantity)||1}; $("[data-preview-area]",form).textContent=`${decimal(articleArea(draft))} m²`; $("[data-preview-price]",form).textContent=money(draft.pricePerSqm,values.currency); $("[data-preview-cost]",form).textContent=money(articleCost(draft),values.currency); };
+    $$('[data-article-calc], select[name="currency"], select[name="priceUnit"]',form).forEach(el=>el.addEventListener("input",update)); update();
   }
 
-  function openNewArticle(projectId = "") {
-    openModal(`<form id="articleForm"><div class="modal-header"><div><h2 id="modalTitle">Ny projektartikel</h2><p>Artikeln kopplas till ett projekt och får ett automatiskt artikelnummer.</p></div><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body">${articleForm({},projectId)}<p class="article-form-note">För rektangulär matta beräknas ytan som bredd × längd. För rund matta används diametern. Specialform använder den manuellt angivna ytan.</p></div><div class="modal-footer"><button type="button" class="button secondary" data-close>Avbryt</button><button class="button primary">Spara artikel</button></div></form>`);
+  function openNewArticle(projectId = "", defaults = {}) {
+    openModal(`<form id="articleForm" ${defaults.sourceScopeId?`data-source-scope-id="${esc(defaults.sourceScopeId)}"`:""}><div class="modal-header"><div><h2 id="modalTitle">Ny projektartikel</h2><p>Artikeln kopplas till ett projekt och får ett automatiskt artikelnummer.</p></div><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body">${articleForm(defaults,projectId)}<p class="article-form-note">För rektangulär matta beräknas ytan som bredd × längd. För rund matta används diametern. Specialform använder den manuellt angivna ytan.</p></div><div class="modal-footer"><button type="button" class="button secondary" data-close>Avbryt</button><button class="button primary">Spara artikel</button></div></form>`);
     bindArticleCalculation($("#articleForm"));
   }
 
@@ -425,15 +530,16 @@
 
   function openArticle(id) {
     const article=state.articles.find(a=>a.id===id); if(!article) return; const project=state.projects.find(p=>p.id===article.projectId);
-    openModal(`<div class="modal-header"><div><h2 id="modalTitle">${article.name}</h2><p>${article.code} · ${project?.name||article.projectId}</p></div><button class="modal-close" data-close>×</button></div><div class="modal-body"><div class="detail-top"><div><span class="detail-id">${article.code}</span><div class="detail-title">${articleSize(article)}</div><div class="detail-sub">${article.location||"Ingen placering"} · ${article.manufacturer||"Ingen tillverkare"}</div></div>${statusBadge(article.status)}</div><div class="calc-preview"><div><span>Beräknad yta</span><strong>${decimal(articleArea(article))} m²</strong></div><div><span>Godkänt pris/kvm</span><strong>${article.pricePerSqm?`${money(article.pricePerSqm,article.currency)}/m²`:"—"}</strong></div><div><span>Produktionskostnad</span><strong>${money(articleCost(article),article.currency)}</strong></div></div><div class="price-history"><div class="section-action"><h3>Prisförhandling med tillverkare</h3><button class="button secondary" data-new-price="${article.id}">＋ Nytt pris</button></div>${article.priceHistory.length ? [...article.priceHistory].reverse().map(price=>`<div class="price-entry"><time>${date(price.date)}</time><span><strong>${price.manufacturer}</strong><span class="cell-secondary">Giltigt till ${date(price.validUntil)}</span></span><strong>${money(price.pricePerSqm,price.currency)}/m²</strong>${statusBadge(price.status)}</div>`).join("") : `<p class="detail-sub">Inga priser registrerade ännu.</p>`}</div></div><div class="modal-footer"><button class="button secondary" data-project-tab="articles" data-id="${article.projectId}">Till projektet</button><button class="button primary" data-edit-article="${article.id}">Ändra artikel/storlek</button></div>`);
+    openModal(`<div class="modal-header"><div><h2 id="modalTitle">${article.name}</h2><p>${article.code} · ${project?.name||article.projectId}</p></div><button class="modal-close" data-close>×</button></div><div class="modal-body"><div class="detail-top"><div><span class="detail-id">${article.code}</span><div class="detail-title">${articleSize(article)}</div><div class="detail-sub">${article.location||"Ingen placering"} · ${article.manufacturer||"Ingen tillverkare"}</div></div>${statusBadge(article.status)}</div><div class="calc-preview"><div><span>Beräknad yta</span><strong>${decimal(articleArea(article))} m²</strong></div><div><span>Godkänt produktionspris</span><strong>${article.pricePerSqm?`${money(article.pricePerSqm,article.currency)}${priceUnitLabel(article.priceUnit)}`:"—"}</strong></div><div><span>Produktionskostnad</span><strong>${money(articleCost(article),article.currency)}</strong></div></div><div class="price-history"><div class="section-action"><h3>Prisförhandling med tillverkare</h3><button class="button secondary" data-new-price="${article.id}">＋ Nytt pris</button></div>${article.priceHistory.length ? [...article.priceHistory].reverse().map(price=>`<div class="price-entry"><time>${date(price.date)}</time><span><strong>${price.manufacturer}</strong><span class="cell-secondary">Giltigt till ${date(price.validUntil)}</span></span><strong>${money(price.pricePerSqm,price.currency)}${priceUnitLabel(price.priceUnit)}</strong>${statusBadge(price.status)}</div>`).join("") : `<p class="detail-sub">Inga priser registrerade ännu.</p>`}</div></div><div class="modal-footer"><button class="button secondary" data-project-tab="articles" data-id="${article.projectId}">Till projektet</button><button class="button primary" data-edit-article="${article.id}">Ändra artikel/storlek</button></div>`);
   }
 
   function openNewPrice(id) {
     const article=state.articles.find(a=>a.id===id); if(!article) return;
-    openModal(`<form id="priceForm" data-article-id="${id}"><div class="modal-header"><div><h2 id="modalTitle">Nytt leverantörspris</h2><p>${article.code} · ${article.name}</p></div><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body"><div class="form-grid"><label class="field"><span>Datum</span><input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}"></label><label class="field"><span>Tillverkare *</span><input name="manufacturer" required value="${article.manufacturer&&article.manufacturer!=="—"?article.manufacturer:""}"></label><label class="field"><span>Pris/kvm *</span><input name="pricePerSqm" required type="number" min="0" step="0.01" value="${article.pricePerSqm||""}"></label><label class="field"><span>Valuta</span><select name="currency"><option ${article.currency!=="USD"?"selected":""}>EUR</option><option ${article.currency==="USD"?"selected":""}>USD</option></select></label><label class="field"><span>Giltigt till</span><input name="validUntil" type="date"></label><label class="field"><span>Prisstatus</span><select name="priceStatus"><option>Första pris</option><option>Förhandlat</option><option>Godkänt</option></select></label></div><p class="article-form-note">Om prisstatus sätts till Godkänt uppdateras artikelns aktuella pris/kvm och status automatiskt.</p></div><div class="modal-footer"><button type="button" class="button secondary" data-article-id="${id}">Avbryt</button><button class="button primary">Spara pris</button></div></form>`);
+    const manufacturerOptions = `<option value="">— Välj tillverkare —</option>` + state.manufacturers.filter(m=>m.active!==false || m.id===article.manufacturerId).map(m=>`<option value="${m.id}" ${m.id===article.manufacturerId || (!article.manufacturerId && m.name===article.manufacturer)?"selected":""}>${esc(m.name)}</option>`).join("");
+    openModal(`<form id="priceForm" data-article-id="${id}"><div class="modal-header"><div><h2 id="modalTitle">Nytt leverantörspris</h2><p>${article.code} · ${article.name}</p></div><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body"><div class="form-grid"><label class="field"><span>Datum</span><input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}"></label><label class="field"><span>Tillverkare *</span><select name="manufacturerId" required>${manufacturerOptions}</select></label><label class="field"><span>Pris *</span><input name="pricePerSqm" required type="number" min="0" step="0.01" value="${article.pricePerSqm||""}"></label><label class="field"><span>Prisenhet</span><select name="priceUnit"><option ${article.priceUnit!=="per styck"&&article.priceUnit!=="fast pris"?"selected":""}>per m²</option><option ${article.priceUnit==="per styck"?"selected":""}>per styck</option><option ${article.priceUnit==="fast pris"?"selected":""}>fast pris</option></select></label><label class="field"><span>Valuta</span><select name="currency"><option ${article.currency!=="USD"?"selected":""}>EUR</option><option ${article.currency==="USD"?"selected":""}>USD</option></select></label><label class="field"><span>Giltigt till</span><input name="validUntil" type="date"></label><label class="field"><span>Prisstatus</span><select name="priceStatus"><option>Förfrågan</option><option>Förhandlas</option><option>Godkänt</option></select></label></div><p class="article-form-note">Godkänt pris blir artikelns aktuella produktionspris och får godkännandedatum automatiskt.</p></div><div class="modal-footer"><button type="button" class="button secondary" data-article-id="${id}">Avbryt</button><button class="button primary">Spara pris</button></div></form>`);
   }
 
-  function articleSnapshot(article) { return { articleId:article.id, code:article.code, name:article.name, quantity:Number(article.quantity)||1, location:article.location, shape:article.shape, widthCm:article.widthCm, lengthCm:article.lengthCm, area:articleArea(article), totalArea:articleTotalArea(article), manufacturer:article.manufacturer, currency:article.currency, pricePerSqm:article.pricePerSqm, additionalCost:article.additionalCost, unitCost:articleUnitCost(article), cost:articleCost(article) }; }
+  function articleSnapshot(article) { return { articleId:article.id, code:article.code, name:article.name, quantity:Number(article.quantity)||1, location:article.location, shape:article.shape, widthCm:article.widthCm, lengthCm:article.lengthCm, area:articleArea(article), totalArea:articleTotalArea(article), manufacturer:article.manufacturer, manufacturerId:article.manufacturerId||"", currency:article.currency, pricePerSqm:article.pricePerSqm, priceUnit:article.priceUnit||"per m²", status:article.status, additionalCost:article.additionalCost, unitCost:articleUnitCost(article), cost:articleCost(article) }; }
 
   function saveCalculationFromForm(projectId, quiet=false) {
     const p=state.projects.find(x=>x.id===projectId); const form=$("#calculationForm"); if(!p||!form) return null;
@@ -581,6 +687,22 @@
       saveNewInquiryForm(event.target);
       return;
     }
+    if(event.target.id === "inquiryCustomerForm") {
+      event.preventDefault(); const v=Object.fromEntries(new FormData(event.target)); const i=state.inquiries.find(x=>x.id===event.target.dataset.inquiryId); if(!i)return;
+      i.customerData={name:v.name||i.customer||"",contact:v.contact||"",email:v.email||"",phone:v.phone||"",address:v.address||"",zip:v.zip||"",city:v.city||"",country:v.country||i.country||"",vatNumber:v.vatNumber||""};
+      i.customer=i.customerData.name||i.customer; i.country=i.customerData.country||i.country; saveState(); renderAll(); openInquiry(i.id,"customer"); toast("Kunduppgifterna har sparats."); return;
+    }
+    if(event.target.id === "inquiryScopeForm") {
+      event.preventDefault(); const i=state.inquiries.find(x=>x.id===event.target.dataset.inquiryId); if(!i)return;
+      const rows=[]; $$('[data-scope-row]',event.target).forEach((tr,index)=>{ const q=n=>$(n,tr)?.value||""; const description=q('[name="scopeDescription"]'); const width=Number(q('[name="scopeWidth"]'))||0; const length=Number(q('[name="scopeLength"]'))||0; const comment=q('[name="scopeComment"]'); if(!description && !width && !length && !comment && index>0)return; rows.push({id:q('[name="scopeId"]')||`SCOPE-${i.id}-${String(index+1).padStart(2,"0")}`,type:q('[name="scopeType"]')||"Rug",description,quantity:Math.max(1,Number(q('[name="scopeQuantity"]'))||1),widthCm:width,lengthCm:length,comment,convertedArticleId:null}); });
+      i.preliminaryScope=rows; i.area=rows.reduce((sum,row)=>sum+scopeRowArea(row),0); saveState(); renderAll(); openInquiry(i.id,"scope"); toast("Den preliminära omfattningen har sparats."); return;
+    }
+    if(event.target.id === "manufacturerForm") {
+      event.preventDefault(); const v=Object.fromEntries(new FormData(event.target)); const editId=event.target.dataset.editId;
+      if(editId){ const m=state.manufacturers.find(x=>x.id===editId); if(m){ const oldName=m.name; Object.assign(m,{name:v.name,country:v.country||"",contact:v.contact||"",email:v.email||"",phone:v.phone||"",currency:v.currency||"EUR",active:event.target.elements.active?.checked||false}); state.articles.filter(a=>a.manufacturerId===m.id || (!a.manufacturerId && a.manufacturer===oldName)).forEach(a=>{a.manufacturerId=m.id;a.manufacturer=m.name;}); } }
+      else { const n=Math.max(0,...state.manufacturers.map(m=>Number(String(m.id||"").split("-").pop())||0))+1; state.manufacturers.push({id:`MFG-${String(n).padStart(4,"0")}`,name:v.name,country:v.country||"",contact:v.contact||"",email:v.email||"",phone:v.phone||"",currency:v.currency||"EUR",active:event.target.elements.active?.checked!==false}); }
+      saveState(); renderAll(); closeModal(); showView("manufacturers"); toast(editId?"Tillverkaren har uppdaterats.":"Tillverkaren har lagts till."); return;
+    }
     if(event.target.id === "companySettingsForm") {
       event.preventDefault(); const v=Object.fromEntries(new FormData(event.target)); state.company={...state.company,...v}; saveState(); renderSettings(); toast("Företagsuppgifterna har sparats."); return;
     }
@@ -592,20 +714,21 @@
     }
     if(event.target.id === "articleForm") {
       event.preventDefault(); const values=Object.fromEntries(new FormData(event.target)); const editId=event.target.dataset.editId;
-      const base={projectId:values.projectId,name:values.name,quantity:Number(values.quantity)||1,location:values.location,shape:values.shape,widthCm:Number(values.widthCm)||0,lengthCm:Number(values.lengthCm)||0,manualArea:Number(values.manualArea)||0,manufacturer:values.manufacturer||"—",currency:values.currency,pricePerSqm:Number(values.pricePerSqm)||0,additionalCost:Number(values.additionalCost)||0,status:values.status};
+      const manufacturer=state.manufacturers.find(m=>m.id===values.manufacturerId); const base={projectId:values.projectId,name:values.name,quantity:Number(values.quantity)||1,location:values.location,shape:values.shape,widthCm:Number(values.widthCm)||0,lengthCm:Number(values.lengthCm)||0,manualArea:Number(values.manualArea)||0,manufacturerId:values.manufacturerId||"",manufacturer:manufacturer?.name||"—",currency:values.currency,pricePerSqm:Number(values.pricePerSqm)||0,priceUnit:values.priceUnit||"per m²",additionalCost:Number(values.additionalCost)||0,status:values.status||"Förfrågan"}; if(base.status==="Godkänt"){base.approvedAt=new Date().toISOString().slice(0,10);base.approvedBy="DE";}
       if(editId) Object.assign(state.articles.find(a=>a.id===editId),base);
       else {
         const projectArticles=state.articles.filter(a=>a.projectId===values.projectId); const number=Math.max(0,...projectArticles.map(a=>Number(a.code.split("A").pop())))+1;
         const articleId=`ART-${String(Math.max(0,...state.articles.map(a=>Number(a.id.split("-").pop())))+1).padStart(4,"0")}`;
         state.articles.push({...base,id:articleId,code:`${values.projectId}-A${String(number).padStart(2,"0")}`,priceHistory:[]});
+        const sourceScopeId=event.target.dataset.sourceScopeId; if(sourceScopeId){ const project=state.projects.find(p=>p.id===values.projectId); const scopeRow=project?.preliminaryScope?.find(r=>r.id===sourceScopeId); if(scopeRow) scopeRow.convertedArticleId=articleId; }
       }
-      saveState(); renderAll(); closeModal(); showView("articles"); toast(editId ? "Artikeln har uppdaterats och kostnaden räknats om." : "Artikeln har lagts till."); return;
+      saveState(); renderAll(); closeModal(); if(event.target.dataset.sourceScopeId) { openProject(values.projectId,"articles"); } else { showView("articles"); } toast(editId ? "Artikeln har uppdaterats och kostnaden räknats om." : "Artikeln har lagts till."); return;
     }
     if(event.target.id === "priceForm") {
-      event.preventDefault(); const values=Object.fromEntries(new FormData(event.target)); const article=state.articles.find(a=>a.id===event.target.dataset.articleId); const price={id:`PRICE-${String(Date.now()).slice(-8)}`,date:values.date,manufacturer:values.manufacturer,pricePerSqm:Number(values.pricePerSqm),currency:values.currency,validUntil:values.validUntil,status:values.priceStatus};
-      article.priceHistory.push(price); article.manufacturer=price.manufacturer;
-      if(price.status==="Godkänt") { article.pricePerSqm=price.pricePerSqm; article.currency=price.currency; article.status="Pris godkänt"; }
-      else if(article.status!=="Pris godkänt") article.status="Förhandling";
+      event.preventDefault(); const values=Object.fromEntries(new FormData(event.target)); const article=state.articles.find(a=>a.id===event.target.dataset.articleId); const manufacturer=state.manufacturers.find(m=>m.id===values.manufacturerId); const price={id:`PRICE-${String(Date.now()).slice(-8)}`,date:values.date,manufacturerId:values.manufacturerId||"",manufacturer:manufacturer?.name||"—",pricePerSqm:Number(values.pricePerSqm),priceUnit:values.priceUnit||"per m²",currency:values.currency,validUntil:values.validUntil,status:values.priceStatus};
+      article.priceHistory.push(price); article.manufacturerId=price.manufacturerId; article.manufacturer=price.manufacturer;
+      if(price.status==="Godkänt") { article.pricePerSqm=price.pricePerSqm; article.priceUnit=price.priceUnit; article.currency=price.currency; article.status="Godkänt"; article.approvedAt=values.date||new Date().toISOString().slice(0,10); article.approvedBy="DE"; }
+      else { article.pricePerSqm=price.pricePerSqm; article.priceUnit=price.priceUnit; article.currency=price.currency; article.status=price.status; }
       saveState(); renderAll(); openArticle(article.id); toast("Leverantörspriset har sparats i historiken.");
       return;
     }
@@ -663,6 +786,8 @@
     }
     if(target.dataset.action==="new-article") openNewArticle();
     if(target.dataset.action==="new-agent") toast("Agentformuläret läggs till i nästa version.");
+    if(target.dataset.action==="new-manufacturer") openManufacturerForm();
+    if(target.dataset.editManufacturer) { const m=state.manufacturers.find(x=>x.id===target.dataset.editManufacturer); if(m) openManufacturerForm(m); }
     if(target.dataset.action==="export-projects") toast("Exportfunktionen förbereds för Excel/CSV.");
     if(target.dataset.close !== undefined) closeModal();
     if(target.dataset.leadFilter) { leadFilter=target.dataset.leadFilter; renderLeads(); }
@@ -671,6 +796,11 @@
     if(target.dataset.deleteLead) confirmDeleteLead(target.dataset.deleteLead);
     if(target.dataset.confirmDeleteLead) { store.removeLead(target.dataset.confirmDeleteLead); renderAll(); closeModal(); showView("leads"); toast("Leadet har tagits bort."); }
     if(target.dataset.inquiryId) openInquiry(target.dataset.inquiryId);
+    if(target.dataset.inquiryMode) { inquiryMode=target.dataset.inquiryMode; const statusSelect=$("#inquiryStatusFilter"); if(statusSelect) statusSelect.value="all"; renderInquiries(); return; }
+    if(target.dataset.inquiryTab) { openInquiry(target.dataset.id,target.dataset.inquiryTab); return; }
+    if(target.dataset.addInquiryScope !== undefined) { const form=target.closest("form"); const body=$("[data-scope-body]",form); if(body){ if(body.children.length===1 && body.children[0].querySelector("td[colspan]")) body.innerHTML=""; body.insertAdjacentHTML("beforeend",inquiryScopeRow({},body.children.length,false)); updateInquiryScopeSummary(form); } return; }
+    if(target.dataset.removeScopeRow !== undefined) { const form=target.closest("form"); target.closest("[data-scope-row]")?.remove(); updateInquiryScopeSummary(form); return; }
+    if(target.dataset.createArticleFromScope) { const p=state.projects.find(x=>x.id===target.dataset.projectIdRef); const row=p?.preliminaryScope?.find(r=>r.id===target.dataset.createArticleFromScope); if(row){ openNewArticle(p.id,{sourceScopeId:row.id,name:row.description||`${row.type||"Rug"}`,quantity:Number(row.quantity)||1,location:row.comment||"",shape:"Rektangulär",widthCm:Number(row.widthCm)||0,lengthCm:Number(row.lengthCm)||0,currency:p.currency||"EUR",status:"Förfrågan"}); } return; }
     if(target.dataset.projectId) openProject(target.dataset.projectId);
     if(target.dataset.projectFilter) { projectFilter=target.dataset.projectFilter; renderProjects(); }
     if(target.dataset.quoteFilter) { quotationFilter=target.dataset.quoteFilter; renderQuotations(); }
@@ -680,7 +810,8 @@
     if(target.dataset.editArticle) openEditArticle(target.dataset.editArticle);
     if(target.dataset.newPrice) openNewPrice(target.dataset.newPrice);
     if(target.dataset.decision==="go") { convertToProject(target.dataset.id); return; }
-    if(target.dataset.decision==="no-go") { const i=state.inquiries.find(x=>x.id===target.dataset.id); i.status="No Go"; i.probability=0; saveState(); renderAll(); closeModal(); showView("inquiries"); toast("Förfrågan markerades som No Go."); return; }
+    if(target.dataset.decision==="no-go") { const i=state.inquiries.find(x=>x.id===target.dataset.id); if(!i)return; i.previousProbability=Number(i.probability)||0; i.status="No Go"; i.probability=0; i.decisionAt=new Date().toISOString().slice(0,10); i.history=Array.isArray(i.history)?i.history:[]; i.history.push({status:"No Go",date:i.decisionAt}); saveState(); inquiryMode="archive"; renderAll(); closeModal(); showView("inquiries"); toast("Förfrågan markerades som No Go och flyttades till Arkiv."); return; }
+    if(target.dataset.reactivateInquiry) { const i=state.inquiries.find(x=>x.id===target.dataset.reactivateInquiry); if(!i || i.status!=="No Go")return; i.status="Bedöms"; i.probability=Number(i.previousProbability)||20; i.reactivatedAt=new Date().toISOString().slice(0,10); i.history=Array.isArray(i.history)?i.history:[]; i.history.push({status:"Bedöms",date:i.reactivatedAt,note:"Återaktiverad från No Go"}); saveState(); inquiryMode="active"; renderAll(); closeModal(); showView("inquiries"); toast("Förfrågan har återaktiverats och ligger åter under Aktiva."); return; }
     if(target.dataset.saveAssessment) { saveInquiryAssessment(target.dataset.saveAssessment); return; }
     if(target.dataset.saveCalculation) { saveCalculationFromForm(target.dataset.saveCalculation); openProject(target.dataset.saveCalculation,"calculation"); }
     if(target.dataset.previewQuoteFromCalc) previewQuoteFromCalculation(target.dataset.previewQuoteFromCalc);
@@ -710,9 +841,10 @@
   $("#modalBackdrop")?.addEventListener("click", event => { if(event.target === event.currentTarget) closeModal(); });
   document.addEventListener("keydown", event => { if(event.key === "Escape") closeModal(); });
   $("#menuToggle")?.addEventListener("click",()=>$("#sidebar")?.classList.toggle("open"));
+  document.addEventListener("input", event => { const form=event.target.closest?.("#inquiryScopeForm"); if(form && ["scopeQuantity","scopeWidth","scopeLength"].includes(event.target.name)) updateInquiryScopeSummary(form); });
   ["#inquirySearch","#inquiryStatusFilter","#inquirySourceFilter"].forEach(sel => $(sel)?.addEventListener(sel.includes("Search") ? "input" : "change",renderInquiries));
   ["#articleSearch","#articleProjectFilter","#articleStatusFilter"].forEach(sel => $(sel)?.addEventListener(sel.includes("Search") ? "input" : "change",renderArticles));
-  $("#globalSearch")?.addEventListener("input", event => { if(event.target.value.length > 1) { showView("inquiries"); if($("#inquirySearch")) $("#inquirySearch").value=event.target.value; renderInquiries(); } });
+  $("#globalSearch")?.addEventListener("input", event => { if(event.target.value.length > 1) { showView("inquiries"); inquiryMode="active"; if($("#inquirySearch")) $("#inquirySearch").value=event.target.value; renderInquiries(); } });
   bindPrimaryActions();
   renderAll();
   bindPrimaryActions();
