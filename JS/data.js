@@ -8,6 +8,7 @@
     let state = load();
 
     function load() {
+      if (Object.prototype.hasOwnProperty.call(options, "initialState")) return normalize(clone(options.initialState));
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey));
         if (!saved) return normalize(clone(seed));
@@ -21,6 +22,9 @@
       ["leads", "inquiries", "projects", "articles", "quotations", "agents", "manufacturers"].forEach(key => {
         if (!Array.isArray(data[key])) data[key] = clone(seed[key] || []);
       });
+      // v5.14: additive migration; existing collections and meeting fields survive.
+      if (!Array.isArray(data.meetings)) data.meetings = [];
+      data.meetings.forEach(meeting => { if (meeting.leadId === undefined) meeting.leadId = null; });
       data.inquiries.forEach(inquiry => {
         const baseCustomer = { name: inquiry.customer || "", contact: "", email: "", phone: "", address: "", zip: "", city: "", country: inquiry.country || "", vatNumber: "" };
         inquiry.customerData = { ...baseCustomer, ...(inquiry.customerData || {}) };
@@ -98,6 +102,7 @@
     }
 
     function save() {
+      if (options.persist) return options.persist(state);
       localStorage.setItem(storageKey, JSON.stringify(state));
       return state;
     }
@@ -107,9 +112,57 @@
       return `${prefix}-26-${String(highest + 1).padStart(digits, "0")}`;
     }
 
-    function createLead(values) {
+    function meetingDay(now = new Date()) {
+      return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+    }
+
+    function listMeetings(archive = false, now = new Date()) {
+      const today = meetingDay(now);
+      return state.meetings.filter(m => Boolean(m.time && m.time.slice(0, 10) < today) === archive)
+        .sort((a, b) => (archive ? -1 : 1) * String(a.time || "").localeCompare(String(b.time || "")) || String(a.id).localeCompare(String(b.id)));
+    }
+
+    function validMeeting(values) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(values.time || "");
+      if (!match || !String(values.visitor || "").trim()) return false;
+      const [, y, m, d, h, min] = match.map(Number);
+      const date = new Date(0); date.setFullYear(y, m - 1, d); date.setHours(12, 0, 0, 0);
+      return y > 0 && date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d && h < 24 && min < 60;
+    }
+
+    function createMeeting(values) {
+      if (!validMeeting(values)) return null;
+      const meeting = { id: nextId("M", state.meetings), time: values.time, visitor: values.visitor.trim(), comment: values.comment || "", host: values.host || "", leadId: values.leadId || null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      state.meetings.push(meeting); save(); return meeting;
+    }
+
+    function updateMeeting(id, values) {
+      const meeting = state.meetings.find(m => m.id === id);
+      if (!meeting) return null;
+      const changes = {};
+      ["time", "visitor", "comment", "host"].forEach(key => { if (values[key] !== undefined) changes[key] = values[key]; });
+      if (!validMeeting({ ...meeting, ...changes })) return null;
+      Object.assign(meeting, changes, { updatedAt: new Date().toISOString() });
+      save(); return meeting;
+    }
+
+    function removeMeeting(id) {
+      const index = state.meetings.findIndex(m => m.id === id);
+      if (index < 0) return false;
+      state.meetings.splice(index, 1); save(); return true;
+    }
+
+    function convertMeetingToLead(id) {
+      const meeting = state.meetings.find(item => item.id === id);
+      if (!meeting) return null;
+      if (meeting.leadId) return state.leads.find(item => item.id === meeting.leadId) || null;
+      if (!String(meeting.visitor || "").trim()) return null;
+      return createLead({ name: meeting.visitor, comments: meeting.comment }, meeting);
+    }
+
+    function createLead(values, sourceMeeting = null) {
       const lead = {
-        id: nextId("L", state.leads),
+        id: nextId("L", [...state.leads, ...state.meetings.filter(m => m.leadId).map(m => ({ id: m.leadId }))]),
         name: values.name,
         expectedStart: values.expectedStart || "",
         comments: values.comments || "",
@@ -119,6 +172,12 @@
         updatedAt: new Date().toISOString()
       };
       state.leads.unshift(lead);
+      if (sourceMeeting) {
+        lead.sourceMeetingId = sourceMeeting.id;
+        sourceMeeting.leadId = lead.id;
+        sourceMeeting.updatedAt = new Date().toISOString();
+      }
+      // The lead and its meeting link are committed in one snapshot.
       save();
       return lead;
     }
@@ -263,6 +322,7 @@
       adapter: "localStorage",
       getState: () => state,
       save,
+      meetingDay, listMeetings, createMeeting, updateMeeting, removeMeeting, convertMeetingToLead,
       createLead,
       updateLead,
       removeLead,
@@ -273,5 +333,60 @@
     };
   }
 
-  window.CDPData = { createLocalStore };
+  // v5.14.1: keep the legacy localStorage value untouched as a migration backup.
+  // IndexedDB transactions commit complete snapshots, never partial collections.
+  async function createPersistentStore(seed, options = {}) {
+    const key = options.storageKey || "cdp-projects-local";
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("cdp-projects", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("snapshots");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Stäng andra öppna fönster med Projects och försök igen."));
+    });
+    db.onversionchange = () => db.close();
+    function readSnapshot() {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction("snapshots", "readonly");
+        const request = tx.objectStore("snapshots").get(key);
+        tx.oncomplete = () => resolve(request.result);
+        tx.onabort = () => reject(tx.error || new Error("Kunde inte läsa sparade data."));
+      });
+    }
+    function writeSnapshot(snapshot) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction("snapshots", "readwrite");
+        tx.objectStore("snapshots").put(snapshot, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onabort = () => reject(tx.error || new Error("Kunde inte spara data."));
+      });
+    }
+    let initial = await readSnapshot();
+    if (initial === undefined) {
+      // Do not silently replace unreadable or corrupt legacy data with demo data.
+      const legacy = localStorage.getItem(key);
+      initial = legacy === null ? seed : JSON.parse(legacy);
+    }
+    if (!initial || typeof initial !== "object" || Array.isArray(initial)) throw new Error("Sparade data har ett ogiltigt format.");
+    let tail = Promise.resolve(true), revision = 0, status = "saved";
+    function notify(value) { status = value; options.onPersistenceChange?.(value); }
+    function persist(state) {
+      const snapshot = clone(state), current = ++revision;
+      notify("saving");
+      tail = tail.then(() => writeSnapshot(snapshot)).then(() => {
+        if (current === revision) notify("saved");
+        return true;
+      }, error => {
+        if (current === revision) { notify("error"); options.onPersistenceError?.(error); }
+        return false; // handled here; the unsaved in-memory state remains exportable/retryable
+      });
+      return tail;
+    }
+    const store = createLocalStore(seed, { initialState: initial, persist });
+    // Finish migration before allowing editing. A failed migration leaves legacy data intact.
+    await writeSnapshot(clone(store.getState()));
+    return Object.assign(store, { adapter: "IndexedDB", whenSaved: () => tail, getPersistenceStatus: () => status });
+  }
+
+  window.CDPData = { createLocalStore, createPersistentStore };
 })();

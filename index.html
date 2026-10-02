@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cappelen Dimyr Projects affärs- och offertsystem.">
-  <title>Cappelen Dimyr Projects</title>
-  <link rel="stylesheet" href="CSS/styles.css?v=5.12">
+  <title>Cappelen Dimyr Projects v5.15</title>
+  <link rel="stylesheet" href="CSS/styles.css?v=5.15">
 </head>
 <body>
   <div class="app-shell">
@@ -13,6 +13,7 @@
       <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects</span></div></div>
       <nav class="main-nav" aria-label="Huvudmeny">
         <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Översikt</button>
+        <button class="nav-item" data-view="meetings"><span class="nav-icon">◷</span>MEETINGS <span class="nav-count muted" id="meetingNavCount"></span></button>
         <button class="nav-item" data-view="leads"><span class="nav-icon">◌</span>Leads <span class="nav-count muted" id="leadNavCount"></span></button>
         <button class="nav-item" data-view="inquiries"><span class="nav-icon">◎</span>Förfrågningar <span class="nav-count" id="inquiryNavCount"></span></button>
         <button class="nav-item" data-view="projects"><span class="nav-icon">▦</span>Projekt</button>
@@ -42,6 +43,12 @@
           <div class="dashboard-grid"><article class="panel pipeline-panel"><div class="panel-heading"><div><h2>Pipeline</h2><p>Aktiva projekt efter affärsfas</p></div><button class="text-button" data-target-view="projects">Visa alla →</button></div><div class="pipeline-chart" id="pipelineChart"></div></article><article class="panel attention-panel"><div class="panel-heading"><div><h2>Kräver åtgärd</h2><p>Prioriterade aktiviteter</p></div></div><div class="attention-list" id="attentionList"></div></article></div>
           <article class="panel"><div class="panel-heading"><div><h2>Närmaste aktiva leads</h2><p>Sorterade efter förväntad projektstart</p></div><button class="text-button" data-target-view="leads">Visa alla →</button></div><div class="lead-watch-list" id="dashboardLeadRows"></div></article>
           <article class="panel"><div class="panel-heading"><div><h2>Senaste förfrågningar</h2><p>Nya affärsmöjligheter som väntar på bedömning</p></div><button class="text-button" data-target-view="inquiries">Visa alla →</button></div><div class="table-scroll"><table><thead><tr><th>Förfrågan</th><th>Kund / projekt</th><th>Land</th><th>Källa</th><th>Värde</th><th>Status</th><th>Inkommen</th><th></th></tr></thead><tbody id="dashboardInquiryRows"></tbody></table></div></article>
+        </section>
+
+        <section class="view" id="view-meetings" data-title="Meetings">
+          <div class="page-heading compact"><div><p class="eyebrow">MÖTEN OCH BESÖK</p><h1>Meetings</h1><p>Redigera direkt i listan. Möten ligger kvar hela mötesdagen och visas därefter i Arkiv.</p></div><button class="button primary" type="button" data-action="new-meeting">＋ Nytt meeting</button></div>
+          <div class="view-tabs"><button class="view-tab active" data-meeting-filter="active">Kommande <span id="activeMeetingCount"></span></button><button class="view-tab" data-meeting-filter="archive">Arkiv <span id="archivedMeetingCount"></span></button></div>
+          <article class="panel flush"><div class="table-scroll"><table class="meetings-table"><thead><tr><th>Tid</th><th>Besökare</th><th>Kommentar</th><th>Värd</th><th>Åtgärd</th></tr></thead><tbody id="meetingRows"></tbody></table></div></article>
         </section>
 
         <section class="view" id="view-leads" data-title="Leads">
@@ -86,7 +93,7 @@
   </div>
   <div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="JS/data.js?v=5.13"></script>
-  <script src="JS/app.js?v=5.13"></script>
+  <script src="JS/data.js?v=5.15"></script>
+  <script src="JS/app.js?v=5.15"></script>
 </body>
 </html>

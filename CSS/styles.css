@@ -181,3 +181,17 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 
 /* v5.12 inquiry archive */
 .inquiry-view-switch{display:flex;gap:6px;margin:0 0 12px}.inquiry-view-switch button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:8px 12px;font-size:10px;font-weight:700;color:var(--muted)}.inquiry-view-switch button.active{background:var(--sage-pale);border-color:var(--sage);color:var(--sage-dark)}.inquiry-view-switch button span{font-weight:500;opacity:.75}
+
+/* Meetings v5.14 */
+.meetings-table { min-width: 900px; }
+.meeting-input { width: 100%; min-width: 145px; padding: 9px; border: 1px solid #d8d8cf; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+.meeting-input[type="datetime-local"] { min-width: 210px; }
+.meetings-table .inline-comment { min-width: 220px; width: 100%; }
+.meeting-input:focus { outline: 2px solid #617783; outline-offset: 1px; }
+
+.storage-notice { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; margin-bottom: 18px; background: #e6ebe3; border-radius: 6px; font-size: 13px; }
+.storage-notice button { cursor: pointer; padding: 6px 10px; border: 1px solid #777; border-radius: 4px; background: white; color: #232321; }
+.storage-notice button[hidden] { display: none; }
+.storage-error { background: #f3e6e2; }
+
+.meetings-table [data-convert-meeting], .meetings-table [data-meeting-lead] { display: block; white-space: nowrap; margin-bottom: 8px; }

@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   "use strict";
 
   const seed = {
@@ -66,11 +66,43 @@
     ]
   };
 
-  const store = window.CDPData.createLocalStore(seed, { storageKey: "cdp-projects-local" });
+  const storageNotice = document.createElement("div");
+  storageNotice.className = "storage-notice";
+  storageNotice.setAttribute("role", "status");
+  storageNotice.innerHTML = '<span id="storageStatus">Öppnar sparade data…</span> <button type="button" id="retryStorage" hidden>Försök spara igen</button> <button type="button" id="backupStorage">Ladda ner säkerhetskopia</button>';
+  document.querySelector(".content-wrap").prepend(storageNotice);
+  let store;
+  document.querySelector("#backupStorage").addEventListener("click", () => {
+    const data = store ? JSON.stringify(store.getState(), null, 2) : localStorage.getItem("cdp-projects-local");
+    if (!data) return;
+    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = "cappelen-dimyr-backup.json"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+  try {
+    store = await window.CDPData.createPersistentStore(seed, {
+      storageKey: "cdp-projects-local",
+      onPersistenceChange(status) {
+        document.querySelector("#storageStatus").textContent = status === "saved" ? "Alla ändringar är sparade." : status === "saving" ? "Sparar…" : "Kunde inte spara. Behåll fönstret öppet och försök igen eller ladda ner en säkerhetskopia.";
+        storageNotice.classList.toggle("storage-error", status === "error");
+        document.querySelector("#retryStorage").hidden = status !== "error";
+      }
+    });
+  } catch (error) {
+    storageNotice.classList.add("storage-error");
+    document.querySelector("#storageStatus").textContent = "Kunde inte öppna datalagret. Befintliga data har inte raderats. " + error.message;
+    return;
+  }
+  document.querySelector("#storageStatus").textContent = "Alla ändringar är sparade.";
+  document.querySelector("#retryStorage").addEventListener("click", () => store.save());
+  window.addEventListener("beforeunload", event => {
+    if (store.getPersistenceStatus() !== "saved") { event.preventDefault(); event.returnValue = ""; }
+  });
   const state = store.getState();
   let quotationFilter = "active";
   let projectFilter = "active";
   let leadFilter = "active";
+  let meetingFilter = "active";
   let inquiryMode = "active";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -126,9 +158,10 @@
     if (article.shape === "Rund") return `Ø ${article.widthCm || 0} cm`;
     return `${article.widthCm || 0} × ${article.lengthCm || 0} cm`;
   }
-  function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2400); }
+  async function toast(message) { if (!await store.whenSaved()) return; const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2400); }
 
   function showView(view) {
+    if (view === "meetings") renderMeetings();
     $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${view}`));
     $$(".nav-item[data-view]").forEach(el => el.classList.toggle("active", el.dataset.view === view));
     const active = $(`#view-${view}`); $("#breadcrumbCurrent").textContent = active?.dataset.title || view;
@@ -136,7 +169,7 @@
   }
 
   function renderAll() {
-    renderMetrics(); renderDashboardLeads(); renderLeads(); renderDashboardInquiries(); renderInquiries(); renderProjects(); renderArticles(); renderQuotations(); renderAgents(); renderManufacturers(); renderSettings();
+    renderMeetings(); renderMetrics(); renderDashboardLeads(); renderLeads(); renderDashboardInquiries(); renderInquiries(); renderProjects(); renderArticles(); renderQuotations(); renderAgents(); renderManufacturers(); renderSettings();
     $("#leadNavCount").textContent = state.leads.filter(lead => lead.status === "Aktivt").length;
     $("#inquiryNavCount").textContent = state.inquiries.filter(i => ["Ny", "Bedöms"].includes(i.status)).length;
     $("#articleNavCount").textContent = state.articles.length;
@@ -173,6 +206,75 @@
       ["◎", "Två nya förfrågningar", "Väntar på första bedömning", "#f3ecdf", "#8a6e42"]
     ].map(a => `<div class="attention-item"><span class="attention-symbol" style="--bg:${a[3]};--color:${a[4]}">${a[0]}</span><div><strong>${a[1]}</strong><span>${a[2]}</span></div><button data-target-view="inquiries">→</button></div>`).join("");
   }
+
+
+  function meetingHostOptions(selected = "") {
+    const hosts = new Map([["", "Välj värd"], ["DE", "Dick Eriksson"], ["JE", "Jacob"]]);
+    state.projects.forEach(p => { if (p.owner && !hosts.has(p.owner)) hosts.set(p.owner, p.owner); });
+    state.meetings.forEach(m => { if (m.host && !hosts.has(m.host)) hosts.set(m.host, m.host); });
+    return [...hosts].map(([id, name]) => `<option value="${esc(id)}" ${id === selected ? "selected" : ""}>${esc(name)}</option>`).join("");
+  }
+
+  function renderMeetings() {
+    const active = store.listMeetings(), archive = store.listMeetings(true);
+    $("#meetingNavCount").textContent = active.length;
+    $("#activeMeetingCount").textContent = active.length;
+    $("#archivedMeetingCount").textContent = archive.length;
+    $$("[data-meeting-filter]").forEach(b => b.classList.toggle("active", b.dataset.meetingFilter === meetingFilter));
+    $("#meetingRows").innerHTML = (meetingFilter === "archive" ? archive : active).map(m => {
+      const attr = `data-meeting-id="${esc(m.id)}"`;
+      const lead = state.leads.find(item => item.id === m.leadId);
+      const leadAction = lead
+        ? `<button class="text-button" data-meeting-lead="${esc(lead.id)}">Visa lead →</button>`
+        : m.leadId ? `<span class="cell-secondary">Lead borttaget</span>`
+        : `<button class="text-button" data-convert-meeting="${esc(m.id)}">Skapa Lead</button>`;
+      return `<tr><td><input class="meeting-input" type="datetime-local" required ${attr} data-meeting-field="time" value="${esc(m.time)}" aria-label="Tid"></td><td><input class="meeting-input" required ${attr} data-meeting-field="visitor" value="${esc(m.visitor)}" aria-label="Besökare"></td><td><textarea class="inline-comment" rows="2" ${attr} data-meeting-field="comment" aria-label="Kommentar">${esc(m.comment)}</textarea></td><td><select class="meeting-input" ${attr} data-meeting-field="host" aria-label="Värd">${meetingHostOptions(m.host)}</select></td><td>${leadAction}<button class="text-button delete-action" data-delete-meeting="${esc(m.id)}">Ta bort</button></td></tr>`;
+    }).join("") || `<tr><td colspan="5">${meetingFilter === "archive" ? "Inga arkiverade möten." : "Inga kommande möten."}</td></tr>`;
+  }
+
+  function openMeetingForm() {
+    openModal(`<form id="meetingForm"><div class="modal-header"><h2 id="modalTitle">Nytt meeting</h2><button type="button" class="modal-close" data-close>×</button></div><div class="modal-body"><div class="form-grid"><label class="field"><span>Tid *</span><input name="time" type="datetime-local" required value="${store.meetingDay()}T09:00"></label><label class="field"><span>Besökare *</span><input name="visitor" required></label><label class="field full"><span>Kommentar</span><textarea name="comment"></textarea></label><label class="field"><span>Värd</span><select name="host">${meetingHostOptions("DE")}</select></label></div></div><div class="modal-footer"><button type="button" class="button secondary" data-close>Avbryt</button><button class="button primary">Lägg till meeting</button></div></form>`);
+  }
+
+  document.addEventListener("submit", event => {
+    if (event.target.id !== "meetingForm") return;
+    event.preventDefault();
+    const meeting = store.createMeeting(Object.fromEntries(new FormData(event.target)));
+    if (!meeting) { toast("Ange giltig tid och besökare."); return; }
+    meetingFilter = meeting.time.slice(0, 10) < store.meetingDay() ? "archive" : "active";
+    closeModal(); showView("meetings"); toast("Mötet har lagts till.");
+  });
+
+  document.addEventListener("change", event => {
+    const el = event.target, field = el.dataset.meetingField;
+    if (!field) return;
+    const meeting = store.updateMeeting(el.dataset.meetingId, { [field]: el.value });
+    if (!meeting) { toast("Ange giltig tid och besökare. Ändringen sparades inte."); renderMeetings(); return; }
+    if (field === "time") renderMeetings();
+    toast("Mötet har sparats.");
+  });
+
+  // Text edits persist while typing, including if the page closes before blur/change.
+  document.addEventListener("input", event => {
+    const el = event.target;
+    if (["visitor", "comment"].includes(el.dataset.meetingField)) {
+      store.updateMeeting(el.dataset.meetingId, { [el.dataset.meetingField]: el.value });
+    }
+  });
+
+  // Reclassify after local midnight, including when returning from sleep/background.
+  let lastMeetingDay = store.meetingDay();
+  function refreshMeetingDay() {
+    const today = store.meetingDay();
+    if (today === lastMeetingDay) return;
+    // Commit an in-progress field before rebuilding rows.
+    const focused = document.activeElement;
+    if (focused?.dataset.meetingField) focused.dispatchEvent(new Event("change", { bubbles: true }));
+    lastMeetingDay = today; renderMeetings();
+  }
+  setInterval(refreshMeetingDay, 1000);
+  window.addEventListener("focus", refreshMeetingDay);
+  document.addEventListener("visibilitychange", refreshMeetingDay);
 
   function sortedLeads(leads) {
     return [...leads].sort((a, b) => {
@@ -777,6 +879,27 @@
     const target=event.target.closest("button,[data-target-view],.project-card[data-project-id],.won-card[data-project-id]"); if(!target) return;
     if(target.dataset.view) showView(target.dataset.view);
     if(target.dataset.targetView) showView(target.dataset.targetView);
+    if(target.dataset.action==="new-meeting") openMeetingForm();
+    if(target.dataset.convertMeeting) {
+      const lead = store.convertMeetingToLead(target.dataset.convertMeeting);
+      if (!lead) { toast("Mötet kunde inte omvandlas till ett lead."); return; }
+      renderAll(); leadFilter = lead.status === "Konverterat" ? "converted" : "active";
+      renderLeads(); showView("leads"); toast("Leadet har skapats. Mötet finns kvar som historik.");
+    }
+    if(target.dataset.meetingLead) {
+      const lead = state.leads.find(item => item.id === target.dataset.meetingLead);
+      if (!lead) return;
+      leadFilter = lead.status === "Konverterat" ? "converted" : "active";
+      renderLeads(); showView("leads");
+      if (lead.status === "Aktivt") openLeadForm(lead);
+      else if (lead.inquiryId) openInquiry(lead.inquiryId);
+    }
+    if(target.dataset.meetingFilter) { meetingFilter=target.dataset.meetingFilter; renderMeetings(); }
+    if(target.dataset.deleteMeeting) {
+      const m=state.meetings.find(m=>m.id===target.dataset.deleteMeeting); if(!m) return;
+      openModal(`<div class="modal-header"><h2 id="modalTitle">Ta bort meeting?</h2><button class="modal-close" data-close>×</button></div><div class="modal-body"><p>${esc(m.visitor)} · ${esc(m.time.replace("T", " "))}</p><p>Mötet tas bort permanent.</p></div><div class="modal-footer"><button class="button secondary" data-close>Avbryt</button><button class="button danger" data-confirm-delete-meeting="${esc(m.id)}">Ta bort</button></div>`, true);
+    }
+    if(target.dataset.confirmDeleteMeeting) { store.removeMeeting(target.dataset.confirmDeleteMeeting); closeModal(); renderMeetings(); toast("Mötet har tagits bort."); }
     if(target.dataset.action==="new-lead") openLeadForm();
     if(target.dataset.action==="new-inquiry") openNewInquiry();
     if(target.dataset.saveNewInquiry !== undefined) {
