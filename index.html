@@ -4,11 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cappelen Dimyr Projects affärs- och offertsystem.">
-  <title>Cappelen Dimyr Projects v5.15</title>
-  <link rel="stylesheet" href="CSS/styles.css?v=5.15">
+  <title>Cappelen Dimyr Projects v5.16</title>
+  <link rel="stylesheet" href="CSS/styles.css?v=5.16">
 </head>
 <body>
-  <div class="app-shell">
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-mark" aria-hidden="true">CD</div>
+        <div><strong>Cappelen Dimyr</strong><span>Offertverktyg</span></div>
+      </div>
+      <p class="eyebrow">CAPPELEN DIMYR PROJECTS</p>
+      <h1 id="login-title">Logga in</h1>
+      <p class="login-lede">Logga in för att använda offertverktyget. Endast inbjudna användare har åtkomst.</p>
+      <p id="login-status" role="status">Kontrollerar inloggning…</p>
+      <form id="login-form" hidden>
+        <label class="field"><span>E-post</span><input name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" required></label>
+        <label class="field"><span>Lösenord</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <p id="login-error" class="login-error" hidden role="alert"></p>
+        <button class="button primary" type="submit">Logga in</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-shell" hidden inert>
     <aside class="sidebar" id="sidebar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects</span></div></div>
       <nav class="main-nav" aria-label="Huvudmeny">
@@ -25,7 +44,7 @@
       </nav>
       <div class="sidebar-bottom">
         <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span>Inställningar</button>
-        <div class="profile-card"><div class="avatar">DE</div><div><strong>Dick Eriksson</strong><span>Administratör</span></div><button aria-label="Profilmeny">•••</button></div>
+        <div class="profile-card"><div class="avatar" id="profileAvatar">DE</div><div class="profile-id"><strong id="profileName">Dick Eriksson</strong><span id="profileRole">Administratör</span></div><button type="button" data-logout>Logga ut</button></div>
       </div>
     </aside>
 
@@ -33,7 +52,7 @@
       <header class="topbar">
         <button class="menu-toggle" id="menuToggle" aria-label="Visa meny">☰</button>
         <div class="breadcrumbs"><span>Projects</span><b>/</b><strong id="breadcrumbCurrent">Översikt</strong></div>
-        <div class="topbar-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Sök projekt, kund eller offert…"></label><button class="icon-button" aria-label="Notiser">♢<span class="notification-dot"></span></button></div>
+        <div class="topbar-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Sök projekt, kund eller offert…"></label><button class="button secondary" type="button" data-logout>Logga ut</button><button class="icon-button" aria-label="Notiser">♢<span class="notification-dot"></span></button></div>
       </header>
 
       <div class="content-wrap">
@@ -93,7 +112,8 @@
   </div>
   <div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="JS/data.js?v=5.15"></script>
-  <script src="JS/app.js?v=5.15"></script>
+  <script src="vendor/supabase.js?v=5.16"></script>
+  <script src="JS/supabase-config.js?v=5.16"></script>
+  <script src="JS/auth.js?v=5.16"></script>
 </body>
 </html>
