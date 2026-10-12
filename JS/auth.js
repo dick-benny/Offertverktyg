@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "5.16";
+  const ASSET_VERSION = "6.3";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -10,6 +10,7 @@
   const config = window.OFFERTVERKTYG_SUPABASE || {};
 
   let appStarted = false;
+  let client;
 
   function showLogin(message) {
     if (appShell) {
@@ -109,11 +110,15 @@
       }
       if (form) form.hidden = true;
       try {
+        await loadScript(`JS/structure.js?v=${ASSET_VERSION}`);
+        await loadScript(`JS/remote.js?v=${ASSET_VERSION}`);
+        await window.CDPRemote.start(client);
         await loadScript(`JS/data.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/app.js?v=${ASSET_VERSION}`);
+        if(!window.CDPApp?.ready)throw Error("Appen kunde inte startas.");
       } catch (error) {
         appStarted = false;
-        showBlockingMessage("Kunde inte läsa in appen. Ladda om sidan.");
+        showBlockingMessage("Kunde inte läsa in Supabase-data. Kontrollera att SQL 003_app_connection.sql är körd och att anslutningen fungerar. Ladda sedan om sidan. " + (error.message || ""));
         return;
       }
     }
@@ -149,7 +154,7 @@
       return;
     }
 
-    let client;
+    // One authenticated client is shared by auth and persistence.
     try {
       client = window.supabase.createClient(config.url, config.publishableKey, {
         auth: {
@@ -163,6 +168,12 @@
       return;
     }
 
+    client.auth.onAuthStateChange((event) => {
+      if(event === "SIGNED_OUT") {
+        if(appStarted) location.reload();
+        else showLogin("Du har loggats ut. Logga in igen.");
+      }
+    });
     bindLogout(client);
     form?.addEventListener("submit", async event => {
       event.preventDefault();

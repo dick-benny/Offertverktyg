@@ -213,3 +213,5 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .login-card .button:disabled { opacity: .65; cursor: progress; }
 .login-error { color: #7b4a42; background: var(--rose-pale); border-radius: 7px; padding: 10px 12px; font-size: 12px; line-height: 1.45; margin: 14px 0 0; }
 .topbar-actions .button.secondary { white-space: nowrap; }
+
+#cloud-save[hidden]{display:none!important}#cloud-save{position:fixed;inset:0;z-index:100000;background:#2228;display:grid;place-items:center;padding:24px}.cloud-card{background:#fff;color:#242720;padding:28px;border-radius:12px;max-width:650px;box-shadow:0 10px 60px #0004}.cloud-card button{padding:12px;margin:6px;border:1px solid #ccc;border-radius:6px;cursor:pointer}.cloud-card p{white-space:pre-wrap}

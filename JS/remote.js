@@ -1,0 +1,120 @@
+/* Supabase persistence. No localStorage reads, seeds, or offline fallback. */
+(() => {
+  'use strict';
+  const tables = ['companies','customers','agents','manufacturers','meetings','leads','projects','project_history','articles','bom_items','rfqs','rfq_responses','article_prices','phases','phase_items','quotation_versions','orders','deliveries'];
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const canonical = x => JSON.stringify(x, function(k,v) { return v && typeof v==='object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])) : v; });
+  const uuid = () => crypto.randomUUID();
+  const blankCompany = () => Object.fromEntries(['name','address','zip','city','country','orgNumber','vatNumber','eori','iban','bic','email','phone','web'].map(k=>[k,'']));
+  const empty = () => ({schemaVersion:6,company:blankCompany(),meetings:[],leads:[],inquiries:[],projects:[],articles:[],rfqs:[],quotations:[],manufacturers:[],agents:[]});
+  const metadata = ['status','sentAt','acceptedAt','acceptedBy','acceptanceMethod','poNumber','acceptedAmount','deliveryDate','acceptanceComment'];
+  const without = (x, keys) => Object.fromEntries(Object.entries(x).filter(([k])=>!keys.includes(k)));
+  const number = x => Number(x || 0);
+  const iso = x => x ? new Date(x).toISOString() : null;
+  const id = o => o._dbId || (o._dbId=uuid());
+  async function rpc(client,name,args) {
+    const request=client.rpc(name,args);
+    // A timeout can mean the server committed but its reply was lost. Retrying is idempotent.
+    return await (request.abortSignal && typeof AbortSignal!=='undefined' && AbortSignal.timeout ? request.abortSignal(AbortSignal.timeout(30000)) : request);
+  }
+
+  function decode(rows) {
+    const s=empty(), get=t=>(rows['cdp_'+t]||[]).filter(r=>!r.archived_at);
+    const item=r=>({...clone(r.details||{}),_dbId:r.id});
+    const ids={};
+    for(const t of tables) for(const r of get(t)) ids[r.id]=r.details?.id||r.id;
+    if(get('companies')[0]) s.company={...blankCompany(),...item(get('companies')[0]),name:get('companies')[0].name};
+    s.manufacturers=get('manufacturers').map(r=>({...item(r),id:ids[r.id],name:r.name,country:r.country||'',contact:r.contact||'',email:r.email||'',phone:r.phone||'',currency:r.currency,active:r.active}));
+    s.agents=get('agents').map(r=>({...item(r),id:ids[r.id],name:r.name,active:r.active}));
+    s.meetings=get('meetings').map(r=>({...item(r),id:ids[r.id],visitor:r.title}));
+    s.leads=get('leads').map(r=>({...item(r),id:ids[r.id],name:r.name,status:r.status,meetingId:r.meeting_id?ids[r.meeting_id]:undefined}));
+    s.projects=get('projects').map(r=>({...item(r),id:ids[r.id],name:r.name,sourceLeadId:r.source_lead_id?ids[r.source_lead_id]:undefined,currency:r.currency,businessStatus:r.business_status,phase:r.phase,probability:Number(r.probability),lostAt:r.lost_at||'',lossReason:r.loss_reason||'',lossComment:r.loss_comment||'',beforeLoss:r.before_loss||undefined,customerData:r.customer_data,calculation:{...r.calculation,targetMargin:Number(r.target_margin)},phases:[],_customerId:r.customer_id,history:get('project_history').filter(h=>h.project_id===r.id).map(h=>({...h.details,_dbId:h.id}))}));
+    s.articles=get('articles').map(r=>({...item(r),id:ids[r.id],projectId:ids[r.project_id],name:r.name,code:r.code||'',specification:r.specification,shape:r.shape,widthCm:number(r.width_cm),lengthCm:number(r.length_cm),manualArea:number(r.manual_area),additionalCost:number(r.additional_cost),bom:get('bom_items').filter(b=>b.article_id===r.id).sort((a,b)=>a.sort_order-b.sort_order).map(b=>({_dbId:b.id,name:b.name,quantity:number(b.quantity),unit:b.unit,notes:b.notes||''}))}));
+    s.rfqs=get('rfqs').map(r=>{const response=get('rfq_responses').find(x=>x.rfq_id===r.id);return {...item(r),id:ids[r.id],projectId:ids[r.project_id],articleId:ids[r.article_id],manufacturerId:ids[r.manufacturer_id],status:r.status,requestSnapshot:r.request_snapshot,sentAt:r.sent_at?.slice(0,10)||'',...(response?{...response.details,_responseId:response.id,price:number(response.price),priceUnit:response.price_unit,currency:response.currency,fxRate:response.fx_rate,moq:number(response.moq),leadTime:number(response.lead_time_days),comment:response.comment||'',status:response.price_status,receivedAt:response.received_at.slice(0,10)}:{})};});
+    for(const r of get('article_prices')) { const a=s.articles.find(a=>a._dbId===r.article_id); if(a){a._selectionId=r.id;a.selectedPrice=clone(r.selected_price_snapshot);const answer=get('rfq_responses').find(x=>x.id===r.response_id);a.selectedRfqId=answer?ids[answer.rfq_id]:undefined;} }
+    for(const r of get('phases')) { const p=s.projects.find(p=>p._dbId===r.project_id); if(!p)continue; p.phases.push({...item(r),id:ids[r.id],name:r.name,productionStart:r.production_start||'',deliveryDate:r.delivery_date||'',items:get('phase_items').filter(i=>i.phase_id===r.id).sort((a,b)=>a.sort_order-b.sort_order).map(i=>({_dbId:i.id,articleId:ids[i.article_id],quantity:number(i.quantity)})),calculation:{...(r.details?.calculation||{}),deliveryTerm:r.delivery_term,freightCost:number(r.freight_cost),customerFreight:number(r.customer_freight),dutyCost:number(r.duty_cost),importVatCost:number(r.import_vat_cost),otherImportCost:number(r.other_import_cost),otherDeliveryCost:number(r.other_delivery_cost),includeImportVatInCost:r.include_import_vat_in_cost,freightPresentation:r.freight_presentation},_sort:r.sort_order}); }
+    for(const p of s.projects)p.phases.sort((a,b)=>a._sort-b._sort);
+    s.quotations=get('quotation_versions').map(r=>({...clone(r.snapshot),...clone(r.details),_dbId:r.id,projectId:ids[r.project_id],version:r.version,currency:r.currency,amount:number(r.amount),status:r.status}));
+    // Old order dialogs store their editable fields on the project. Tables remain canonical mirrors.
+    for(const r of get('orders')) {const p=s.projects.find(p=>p._dbId===r.project_id);if(p)p._orderId=r.id;}
+    for(const r of get('deliveries')) {const p=s.projects.find(p=>p._dbId===r.project_id),ph=p?.phases.find(ph=>ph._dbId===r.phase_id);if(ph)ph._deliveryId=r.id;}
+    return s;
+  }
+
+  function encode(s) {
+    const rows=Object.fromEntries(tables.map(t=>['cdp_'+t,[]]));
+    const put=(t,o,v)=>{const r={id:id(o),...v,archived_at:null};rows['cdp_'+t].push(r);return r.id;};
+    const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error('En koppling saknas. Ladda om appen.');return id(o);};
+    const details=(o,keys=[])=>clone(without(o,['_dbId',...keys]));
+    let companyId=null;
+    if(s.company.name?.trim())companyId=put('companies',s.company,{name:s.company.name,details:details(s.company)});
+    else if(Object.entries(s.company).some(([k,v])=>k!=='_dbId'&&v))throw Error('Ange företagsnamn innan du sparar företagsuppgifter.');
+    for(const m of s.manufacturers)put('manufacturers',m,{name:m.name,country:m.country||'',contact:m.contact||'',email:m.email||'',phone:m.phone||'',currency:m.currency||'EUR',active:m.active!==false,details:details(m)});
+    for(const a of s.agents)put('agents',a,{name:a.name,active:a.active!==false,details:details(a)});
+    for(const m of s.meetings)put('meetings',m,{title:m.visitor,meeting_at:iso(m.time),details:details(m)});
+    for(const l of s.leads)put('leads',l,{name:l.name,meeting_id:l.meetingId?find(s.meetings,l.meetingId):null,status:l.status||'Aktivt',details:details(l)});
+    for(const p of s.projects) {
+      let customer=null;
+      if(p.customer?.trim()) {const c={_dbId:p._customerId||(p._customerId=uuid())};customer=put('customers',c,{name:p.customer,billing:p.customerData?.billing||{},delivery:p.customerData?.delivery||{},same_as_billing:p.customerData?.sameAsBilling!==false});}
+      const pid=put('projects',p,{name:p.name,source_lead_id:p.sourceLeadId?find(s.leads,p.sourceLeadId):null,customer_id:customer,company_id:companyId,currency:p.currency||'EUR',business_status:p.businessStatus||'Aktivt',phase:p.phase||'Kalkyl',probability:number(p.probability),target_margin:Number(p.calculation?.targetMargin??45),lost_at:p.lostAt||null,loss_reason:p.lossReason||null,loss_comment:p.lossComment||null,before_loss:p.beforeLoss||null,customer_data:p.customerData||{},calculation:p.calculation||{},details:details(p,['phases','history'])});
+      for(const h of p.history||[])put('project_history',h,{project_id:pid,event_type:h.status||h.type||'Ändring',details:details(h)});
+    }
+    for(const a of s.articles) {
+      const aid=put('articles',a,{project_id:find(s.projects,a.projectId),code:a.code||'',name:a.name,specification:a.specification||'',shape:a.shape||'',width_cm:number(a.widthCm),length_cm:number(a.lengthCm),manual_area:number(a.manualArea),additional_cost:number(a.additionalCost),details:details(a,['bom','selectedPrice'])});
+      (a.bom||[]).forEach((b,n)=>put('bom_items',b,{article_id:aid,name:b.name,quantity:number(b.quantity),unit:b.unit||'st',notes:b.notes||'',sort_order:n}));
+    }
+    for(const r of s.rfqs) {
+      const pid=find(s.projects,r.projectId),aid=find(s.articles,r.articleId);
+      const rid=put('rfqs',r,{project_id:pid,article_id:aid,manufacturer_id:find(s.manufacturers,r.manufacturerId),status:r.status,request_snapshot:r.requestSnapshot,sent_at:iso(r.sentAt),details:details(r,['requestSnapshot'])});
+      if(r.price!=null){const o={_dbId:r._responseId||(r._responseId=uuid())};put('rfq_responses',o,{rfq_id:rid,article_id:aid,project_id:pid,price:number(r.price),price_unit:r.priceUnit||'per m²',currency:r.currency||'EUR',fx_rate:r.fxRate?Number(r.fxRate):null,moq:number(r.moq),lead_time_days:number(r.leadTime),comment:r.comment||'',price_status:r.status,received_at:iso(r.receivedAt)||iso(r.createdAt),details:{history:r.history||[]}});}
+    }
+    for(const a of s.articles)if(a.selectedRfqId&&a.selectedPrice){const r=s.rfqs.find(r=>r.id===a.selectedRfqId);if(!r?._responseId)throw Error('Det valda RFQ-svaret saknas.');put('article_prices',{_dbId:a._selectionId||(a._selectionId=uuid())},{article_id:id(a),project_id:find(s.projects,a.projectId),response_id:r._responseId,selected_price_snapshot:a.selectedPrice});}
+    for(const p of s.projects) (p.phases||[]).forEach((ph,n)=>{
+      const c={...window.CDPStructure.defaults(),...ph.calculation};
+      ph._itemIds=ph._itemIds||{};
+      ph.items.forEach(i=>{i._dbId=i._dbId||ph._itemIds[i.articleId]||uuid();ph._itemIds[i.articleId]=i._dbId;});
+      const phid=put('phases',ph,{project_id:id(p),name:ph.name,production_start:ph.productionStart||null,delivery_date:ph.deliveryDate||null,sort_order:n,delivery_term:c.deliveryTerm,freight_cost:number(c.freightCost),customer_freight:number(c.customerFreight),duty_cost:number(c.dutyCost),import_vat_cost:number(c.importVatCost),other_import_cost:number(c.otherImportCost),other_delivery_cost:number(c.otherDeliveryCost),include_import_vat_in_cost:!!c.includeImportVatInCost,freight_presentation:c.freightPresentation,details:details(ph,['items','_sort'])});
+      ph.items.forEach((i,n)=>put('phase_items',i,{project_id:id(p),phase_id:phid,article_id:find(s.articles,i.articleId),quantity:Number(i.quantity),sort_order:n}));
+    });
+    for(const q of s.quotations)put('quotation_versions',q,{project_id:find(s.projects,q.projectId),version:Number(q.version),status:q.status,currency:q.currency||'EUR',amount:number(q.amount),total_cost:number(q.costSnapshot?.totalCost),snapshot:details(q,metadata),details:Object.fromEntries(metadata.filter(k=>k in q).map(k=>[k,q[k]])),sent_at:iso(q.sentAt),accepted_at:iso(q.acceptedAt)});
+    for(const p of s.projects){const q=s.quotations.find(q=>q.projectId===p.id&&q.status==='Accepterad');if(!q)continue;const oid=put('orders',{_dbId:p._orderId||(p._orderId=uuid())},{project_id:id(p),quotation_version_id:id(q),status:p.deliveryStatus||'Planerad',details:{poNumber:p.poNumber||'',acceptedBy:p.acceptedBy||'',acceptedAt:p.acceptedAt||'',acceptedAmount:p.value,comment:p.deliveryComment||''}});for(const ph of p.phases||[])put('deliveries',{_dbId:ph._deliveryId||(ph._deliveryId=uuid())},{project_id:id(p),order_id:oid,phase_id:id(ph),planned_date:ph.deliveryDate||p.deliveryDate||null,status:p.deliveryStatus||'Planerad',details:{comment:p.deliveryComment||''}});}
+    return rows;
+  }
+
+  function createAdapter(client,initial) {
+    if(!initial||tables.some(t=>!Array.isArray(initial['cdp_'+t])))throw Error('Databassvaret är ofullständigt.');
+    const state=decode(initial);
+    // First normalization establishes a baseline only; it never writes to the database.
+    encode(state);
+    let baseline=encode(state), revisions=new Map();
+    for(const t of tables)for(const r of initial['cdp_'+t])revisions.set('cdp_'+t+':'+r.id,r.revision);
+    let pending=null, busy=false, failure=null, retryBatch=null, notify=()=>{};
+    function diff(next){const changes=[];for(const t of tables){const table='cdp_'+t,old=new Map(baseline[table].map(r=>[r.id,r]));for(const r of next[table]){const before=old.get(r.id);if(!before||canonical(before)!==canonical(r))changes.push({table,row:r,revision:revisions.get(table+':'+r.id)??null});old.delete(r.id);}for(const r of old.values())changes.push({table,row:{id:r.id,archived_at:new Date().toISOString()},revision:revisions.get(table+':'+r.id)});}return changes;}
+    async function flush(){
+      try{
+        // Two passes stabilize IDs assigned to nested records before serializing parent details.
+        if(!retryBatch){encode(state);const next=encode(state);retryBatch={next,changes:diff(next)};}
+        const {next,changes}=retryBatch;
+        if(changes.length){const result=await rpc(client,'cdp_apply_changes',{changes});if(result.error)throw result.error;if(!Array.isArray(result.data)||result.data.length!==changes.length)throw Error('Sparandet kunde inte bekräftas.');for(const r of result.data)revisions.set(r.table+':'+r.id,r.revision);}
+        baseline=next;retryBatch=null;failure=null;busy=false;pending=null;notify({busy:false});return true;
+      }catch(e){failure=e;busy=true;pending=null;notify({busy:true,error:e});return false;}
+    }
+    return {state, get busy(){return busy;},get failure(){return failure;},onStatus(fn){notify=fn;},save(){if(failure)throw Error('Föregående ändring är inte sparad.');if(!pending){busy=true;notify({busy:true});pending=Promise.resolve().then(flush);}return pending;},retry(){failure=null;return this.save();},exportUnsaved(){return clone(state);},diff, get baseline(){return baseline;}};
+  }
+
+  function bindStatus(adapter){
+    const panel=document.createElement('div');panel.id='cloud-save';panel.hidden=true;
+    panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Sparstatus');
+    panel.innerHTML='<div class="cloud-card"><h2 id="cloud-title">Sparar…</h2><p id="cloud-message">Ändringen sparas i Supabase.</p><div id="cloud-actions" hidden><button type="button" data-cloud-retry>Försök spara igen</button><button type="button" data-cloud-export>Hämta osparade uppgifter</button><button type="button" data-cloud-reload>Läs om från databasen</button></div></div>';
+    document.body.appendChild(panel);
+    const setBlocked=b=>{for(const el of document.querySelectorAll('.app-shell,#modalBackdrop,#v6PreviewOverlay'))el.inert=b;};
+    adapter.onStatus(({busy,error})=>{panel.hidden=!busy;setBlocked(busy);if(busy){document.querySelector('#toast')?.classList.remove('show');panel.querySelector('#cloud-title').textContent=error?'Ändringen är inte bekräftad':'Sparar…';panel.querySelector('#cloud-message').textContent=error?((error.code==='40001'||error.code==='23505')?'Uppgifterna har ändrats av någon annan. Hämta gärna dina osparade uppgifter och läs sedan om från databasen.':'Kunde inte bekräfta sparandet. Kontrollera anslutningen och försök igen. ')+(error.message||''):'Ändringen sparas i Supabase.';panel.querySelector('#cloud-actions').hidden=!error;if(error)panel.querySelector('[data-cloud-export]').focus();}else{const el=document.querySelector('#toast');if(el){el.textContent='Sparat i Supabase';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400);}}});
+    panel.querySelector('[data-cloud-retry]').onclick=()=>adapter.retry();
+    panel.querySelector('[data-cloud-export]').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(adapter.exportUnsaved(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='osparade-uppgifter.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    panel.querySelector('[data-cloud-reload]').onclick=()=>{if(confirm('Läsa om databasen? Eventuella osparade ändringar i den här fliken försvinner.'))location.reload();};
+    // Capture at window before any existing application handlers, including dialogs opened while saving.
+    for(const type of ['click','submit','change','input','keydown'])window.addEventListener(type,e=>{if(adapter.busy&&!panel.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();}},true);
+    window.addEventListener('beforeunload',e=>{if(adapter.busy){e.preventDefault();e.returnValue='';}});
+  }
+  window.CDPRemote={tables,encode,decode,createAdapter,async start(client){const {data,error}=await rpc(client,'cdp_read_state');if(error)throw error;const adapter=createAdapter(client,data);this.adapter=adapter;bindStatus(adapter);return adapter;}};
+})();

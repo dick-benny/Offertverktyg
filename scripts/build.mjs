@@ -72,12 +72,13 @@ if (!/^https:\/\/.+/i.test(url)) {
   process.exit(1);
 }
 
-for (const file of ["JS/auth.js", "JS/data.js", "JS/app.js", "JS/supabase-config.js"]) {
+for (const file of ["JS/remote.js", "JS/structure.js", "JS/auth.js", "JS/data.js", "JS/app.js", "JS/supabase-config.js"]) {
   execFileSync(process.execPath, ["--check", path.join(root, file)], { stdio: "inherit" });
 }
 
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assertHtmlGate(html);
+if(html.includes('data-view="inquiries"') || !html.includes("Projects v6.3")) throw new Error("Wrong application version");
 
 const authSource = fs.readFileSync(path.join(root, "JS/auth.js"), "utf8");
 for (const needle of ["signInWithPassword", "getSession", "getUser", "signOut"]) {
@@ -87,7 +88,8 @@ for (const needle of ["signInWithPassword", "getSession", "getUser", "signOut"])
   }
 }
 
-const umdPath = path.join(root, "node_modules/@supabase/supabase-js/dist/umd/supabase.js");
+const installedUmd = path.join(root, "node_modules/@supabase/supabase-js/dist/umd/supabase.js");
+const umdPath = fs.existsSync(installedUmd) ? installedUmd : path.join(root, "vendor/supabase.js");
 if (!fs.existsSync(umdPath)) {
   console.error("Missing @supabase/supabase-js. Run npm install before npm run build.");
   process.exit(1);
@@ -98,6 +100,7 @@ if (!umd.includes(Buffer.from("createClient"))) {
   process.exit(1);
 }
 
+if (path.resolve(dist) !== path.join(root, "dist")) throw new Error("Unexpected output directory");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 for (const entry of ["index.html", "CSS", "JS", "data"]) {

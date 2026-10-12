@@ -1,0 +1,14 @@
+{
+  "name": "offertverktyg",
+  "private": true,
+  "description": "Cappelen Dimyr Projects offertverktyg",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/build.mjs && node scripts/serve.mjs",
+    "test": "node tests/structure.test.cjs && node tests/auth-build.test.cjs && node tests/project-actions.test.cjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.3"
+  },
+  "version": "6.2.0"
+}
