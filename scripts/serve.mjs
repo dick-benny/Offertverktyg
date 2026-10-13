@@ -11,4 +11,4 @@ http.createServer((req,res)=>{
   catch {res.writeHead(400).end();return;}
   if(!target.startsWith(root+path.sep)){res.writeHead(403).end();return;}
   fs.readFile(target,(error,data)=>{if(error){res.writeHead(404).end('Not found');return;}res.writeHead(200,{'Content-Type':types[path.extname(target)]||'application/octet-stream','Cache-Control':'no-store'});res.end(data);});
-}).listen(port,'127.0.0.1',()=>console.log(`Cappelen Dimyr Projects v7.1: http://localhost:${port} (dist/)`));
+}).listen(port,'0.0.0.0',()=>console.log(`Cappelen Dimyr Projects v7.1: http://0.0.0.0:${port} (dist/)`));
