@@ -1,0 +1,28 @@
+CAPPELEN DIMYR PROJECTS v7.1
+Paketerad 2026-10-13 från dina lokala projektfiler.
+
+INNEHÅLL
+Källkod, byggskript, tester, Supabase-SQL och ett nybyggt dist/.
+Gamla rot/data/, index_v3.html, node_modules och Git-historik ingår inte.
+Tester kan innehålla testdata; tests/ publiceras inte av byggskriptet.
+
+BYT PROJEKTFILER
+1. Ta en säkerhetskopia av hela befintliga projektmappen.
+2. Behåll .git i projektets rot: den innehåller kopplingen till GitHub och historiken.
+   Behåll också eventuell .env, .env.local och egna lokala konfigurationsfiler.
+3. Ersätt appens gamla filer/kataloger med zip-filens innehåll.
+   Avlägsna den överflödiga gamla DATA/data-appkopian och gamla dist före kopieringen.
+   Zip-filens index.html och package.json ska ligga direkt i projektets rot.
+4. dist är redan byggt. För ett nytt bygge: npm run build från projektets rot.
+5. Kontrollera Git-ändringarna, gör commit och skicka till GitHub.
+   .gitignore undantar dist/. Om Render bygger från källkod är detta normalt.
+   Om Render publicerar en Git-spårad dist utan att bygga behöver rätt filer ingå i commit.
+6. Kontrollera webbplatsen efter en lyckad deploy. Visas v6.2 fortfarande,
+   kontrollera Render-tjänstens repo, branch, commit, rot och publiceringskatalog.
+
+VERIFIERING
+Rent bygge genomfört. 46 tester passerade:
+12 strukturtester, 16 datalagringstester, 11 arbetsflödestester, 7 integrationstester.
+Databas och inloggning är simulerade i testerna. Ingen livedatabas har ändrats.
+Webbläsartest, live-Supabase och Render-deploy har inte verifierats.
+Källfilerna har inte ändrats i detta paket.
