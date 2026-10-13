@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "6.3";
+  const ASSET_VERSION = "7.1";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -111,9 +111,11 @@
       if (form) form.hidden = true;
       try {
         await loadScript(`JS/structure.js?v=${ASSET_VERSION}`);
+        await loadScript(`JS/workflow.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/remote.js?v=${ASSET_VERSION}`);
         await window.CDPRemote.start(client);
         await loadScript(`JS/data.js?v=${ASSET_VERSION}`);
+        await loadScript(`JS/xlsx.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/app.js?v=${ASSET_VERSION}`);
         if(!window.CDPApp?.ready)throw Error("Appen kunde inte startas.");
       } catch (error) {
@@ -179,8 +181,8 @@
       event.preventDefault();
       if (errorEl) errorEl.hidden = true;
       const submit = form.querySelector('button[type="submit"]');
-      const email = form.email.value.trim();
-      const password = form.password.value;
+      const email = form.elements.email.value.trim();
+      const password = form.elements.password.value;
       if (submit) {
         submit.disabled = true;
         submit.textContent = "Loggar in…";
@@ -191,7 +193,7 @@
           showLogin(translateError(error));
           return;
         }
-        form.password.value = "";
+        form.elements.password.value = "";
         await showApp(data.session);
       } catch (error) {
         showLogin(translateError(error));

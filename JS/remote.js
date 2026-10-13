@@ -6,7 +6,7 @@
   const canonical = x => JSON.stringify(x, function(k,v) { return v && typeof v==='object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])) : v; });
   const uuid = () => crypto.randomUUID();
   const blankCompany = () => Object.fromEntries(['name','address','zip','city','country','orgNumber','vatNumber','eori','iban','bic','email','phone','web'].map(k=>[k,'']));
-  const empty = () => ({schemaVersion:6,company:blankCompany(),meetings:[],leads:[],inquiries:[],projects:[],articles:[],rfqs:[],quotations:[],manufacturers:[],agents:[]});
+  const empty = () => ({schemaVersion:7,workspaceId:'supabase:'+(window.OFFERTVERKTYG_SUPABASE?.url||'shared'),company:blankCompany(),meetings:[],leads:[],inquiries:[],projects:[],articles:[],rfqs:[],quotations:[],manufacturers:[],agents:[],samples:[],articleTemplates:[]});
   const metadata = ['status','sentAt','acceptedAt','acceptedBy','acceptanceMethod','poNumber','acceptedAmount','deliveryDate','acceptanceComment'];
   const without = (x, keys) => Object.fromEntries(Object.entries(x).filter(([k])=>!keys.includes(k)));
   const number = x => Number(x || 0);
@@ -24,13 +24,20 @@
     const ids={};
     for(const t of tables) for(const r of get(t)) ids[r.id]=r.details?.id||r.id;
     if(get('companies')[0]) s.company={...blankCompany(),...item(get('companies')[0]),name:get('companies')[0].name};
+    const appData=s.company._projectsApp;
+    if(appData){s.articleTemplates=clone(appData.articleTemplates||[]);s.inquiries=clone(appData.inquiries||[]);}
+    delete s.company._projectsApp;
     s.manufacturers=get('manufacturers').map(r=>({...item(r),id:ids[r.id],name:r.name,country:r.country||'',contact:r.contact||'',email:r.email||'',phone:r.phone||'',currency:r.currency,active:r.active}));
     s.agents=get('agents').map(r=>({...item(r),id:ids[r.id],name:r.name,active:r.active}));
     s.meetings=get('meetings').map(r=>({...item(r),id:ids[r.id],visitor:r.title}));
     s.leads=get('leads').map(r=>({...item(r),id:ids[r.id],name:r.name,status:r.status,meetingId:r.meeting_id?ids[r.meeting_id]:undefined}));
     s.projects=get('projects').map(r=>({...item(r),id:ids[r.id],name:r.name,sourceLeadId:r.source_lead_id?ids[r.source_lead_id]:undefined,currency:r.currency,businessStatus:r.business_status,phase:r.phase,probability:Number(r.probability),lostAt:r.lost_at||'',lossReason:r.loss_reason||'',lossComment:r.loss_comment||'',beforeLoss:r.before_loss||undefined,customerData:r.customer_data,calculation:{...r.calculation,targetMargin:Number(r.target_margin)},phases:[],_customerId:r.customer_id,history:get('project_history').filter(h=>h.project_id===r.id).map(h=>({...h.details,_dbId:h.id}))}));
     s.articles=get('articles').map(r=>({...item(r),id:ids[r.id],projectId:ids[r.project_id],name:r.name,code:r.code||'',specification:r.specification,shape:r.shape,widthCm:number(r.width_cm),lengthCm:number(r.length_cm),manualArea:number(r.manual_area),additionalCost:number(r.additional_cost),bom:get('bom_items').filter(b=>b.article_id===r.id).sort((a,b)=>a.sort_order-b.sort_order).map(b=>({_dbId:b.id,name:b.name,quantity:number(b.quantity),unit:b.unit,notes:b.notes||''}))}));
-    s.rfqs=get('rfqs').map(r=>{const response=get('rfq_responses').find(x=>x.rfq_id===r.id);return {...item(r),id:ids[r.id],projectId:ids[r.project_id],articleId:ids[r.article_id],manufacturerId:ids[r.manufacturer_id],status:r.status,requestSnapshot:r.request_snapshot,sentAt:r.sent_at?.slice(0,10)||'',...(response?{...response.details,_responseId:response.id,price:number(response.price),priceUnit:response.price_unit,currency:response.currency,fxRate:response.fx_rate,moq:number(response.moq),leadTime:number(response.lead_time_days),comment:response.comment||'',status:response.price_status,receivedAt:response.received_at.slice(0,10)}:{})};});
+    s.rfqs=get('rfqs').map(r=>{const response=get('rfq_responses').find(x=>x.rfq_id===r.id);const result={...item(r),id:ids[r.id],projectId:ids[r.project_id],articleId:ids[r.article_id],manufacturerId:ids[r.manufacturer_id],status:r.status,requestSnapshot:r.request_snapshot,sentAt:r.sent_at?.slice(0,10)||'',...(response?{...response.details,_responseId:response.id,price:number(response.price),priceUnit:response.price_unit,currency:response.currency,fxRate:response.fx_rate,moq:number(response.moq),leadTime:number(response.lead_time_days),comment:response.comment||'',status:response.price_status,receivedAt:response.received_at?.slice(0,10)||''}:{})};
+      if(r.details?._responseState)Object.assign(result,clone(r.details._responseState));
+      for(const sample of r.details?._samples||[])s.samples.push({...clone(sample),rfqId:result.id,projectId:result.projectId,articleId:result.articleId,manufacturerId:result.manufacturerId});
+      delete result._samples;delete result._responseState;return result;
+    });
     for(const r of get('article_prices')) { const a=s.articles.find(a=>a._dbId===r.article_id); if(a){a._selectionId=r.id;a.selectedPrice=clone(r.selected_price_snapshot);const answer=get('rfq_responses').find(x=>x.id===r.response_id);a.selectedRfqId=answer?ids[answer.rfq_id]:undefined;} }
     for(const r of get('phases')) { const p=s.projects.find(p=>p._dbId===r.project_id); if(!p)continue; p.phases.push({...item(r),id:ids[r.id],name:r.name,productionStart:r.production_start||'',deliveryDate:r.delivery_date||'',items:get('phase_items').filter(i=>i.phase_id===r.id).sort((a,b)=>a.sort_order-b.sort_order).map(i=>({_dbId:i.id,articleId:ids[i.article_id],quantity:number(i.quantity)})),calculation:{...(r.details?.calculation||{}),deliveryTerm:r.delivery_term,freightCost:number(r.freight_cost),customerFreight:number(r.customer_freight),dutyCost:number(r.duty_cost),importVatCost:number(r.import_vat_cost),otherImportCost:number(r.other_import_cost),otherDeliveryCost:number(r.other_delivery_cost),includeImportVatInCost:r.include_import_vat_in_cost,freightPresentation:r.freight_presentation},_sort:r.sort_order}); }
     for(const p of s.projects)p.phases.sort((a,b)=>a._sort-b._sort);
@@ -47,7 +54,7 @@
     const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error('En koppling saknas. Ladda om appen.');return id(o);};
     const details=(o,keys=[])=>clone(without(o,['_dbId',...keys]));
     let companyId=null;
-    if(s.company.name?.trim())companyId=put('companies',s.company,{name:s.company.name,details:details(s.company)});
+    if(s.company.name?.trim()||s.company._dbId||s.articleTemplates?.length||s.inquiries?.length)companyId=put('companies',s.company,{name:s.company.name||'',details:{...details(s.company),_projectsApp:{schemaVersion:7,articleTemplates:clone(s.articleTemplates||[]),inquiries:clone(s.inquiries||[])}}});
     else if(Object.entries(s.company).some(([k,v])=>k!=='_dbId'&&v))throw Error('Ange företagsnamn innan du sparar företagsuppgifter.');
     for(const m of s.manufacturers)put('manufacturers',m,{name:m.name,country:m.country||'',contact:m.contact||'',email:m.email||'',phone:m.phone||'',currency:m.currency||'EUR',active:m.active!==false,details:details(m)});
     for(const a of s.agents)put('agents',a,{name:a.name,active:a.active!==false,details:details(a)});
@@ -65,8 +72,11 @@
     }
     for(const r of s.rfqs) {
       const pid=find(s.projects,r.projectId),aid=find(s.articles,r.articleId);
-      const rid=put('rfqs',r,{project_id:pid,article_id:aid,manufacturer_id:find(s.manufacturers,r.manufacturerId),status:r.status,request_snapshot:r.requestSnapshot,sent_at:iso(r.sentAt),details:details(r,['requestSnapshot'])});
-      if(r.price!=null){const o={_dbId:r._responseId||(r._responseId=uuid())};put('rfq_responses',o,{rfq_id:rid,article_id:aid,project_id:pid,price:number(r.price),price_unit:r.priceUnit||'per m²',currency:r.currency||'EUR',fx_rate:r.fxRate?Number(r.fxRate):null,moq:number(r.moq),lead_time_days:number(r.leadTime),comment:r.comment||'',price_status:r.status,received_at:iso(r.receivedAt)||iso(r.createdAt),details:{history:r.history||[]}});}
+      const responseKeys=['decision','price','priceUnit','currency','fxRate','moq','leadTime','comment','status','receivedAt','validUntil','revision','history'];
+      const responseState=Object.fromEntries(responseKeys.filter(k=>r[k]!==undefined).map(k=>[k,clone(r[k])]));
+      const rid=put('rfqs',r,{project_id:pid,article_id:aid,manufacturer_id:find(s.manufacturers,r.manufacturerId),status:r.status==='Avböjd'?'Förfrågan':r.status,request_snapshot:r.requestSnapshot,sent_at:iso(r.sentAt),details:{...details(r,['requestSnapshot']),_responseState:responseState,_samples:clone((s.samples||[]).filter(sample=>sample.rfqId===r.id))}});
+      if(r.price!=null||r._responseId||s.articles.some(a=>a.selectedRfqId===r.id&&a.selectedPrice)){const o={_dbId:r._responseId||(r._responseId=uuid())};const lastPrice=r.price??[...(r.history||[])].reverse().find(h=>h.price!=null)?.price??0;
+        put('rfq_responses',o,{rfq_id:rid,article_id:aid,project_id:pid,price:number(lastPrice),price_unit:r.priceUnit||'per m²',currency:r.currency||'EUR',fx_rate:r.fxRate?Number(r.fxRate):null,moq:number(r.moq),lead_time_days:number(r.leadTime),comment:r.comment||'',price_status:r.status==='Avböjd'?'Förfrågan':r.status,received_at:iso(r.receivedAt)||iso(r.createdAt),details:{history:r.history||[]}});}
     }
     for(const a of s.articles)if(a.selectedRfqId&&a.selectedPrice){const r=s.rfqs.find(r=>r.id===a.selectedRfqId);if(!r?._responseId)throw Error('Det valda RFQ-svaret saknas.');put('article_prices',{_dbId:a._selectionId||(a._selectionId=uuid())},{article_id:id(a),project_id:find(s.projects,a.projectId),response_id:r._responseId,selected_price_snapshot:a.selectedPrice});}
     for(const p of s.projects) (p.phases||[]).forEach((ph,n)=>{
@@ -83,7 +93,7 @@
 
   function createAdapter(client,initial) {
     if(!initial||tables.some(t=>!Array.isArray(initial['cdp_'+t])))throw Error('Databassvaret är ofullständigt.');
-    const state=decode(initial);
+    const state=window.CDPStructure.migrate(decode(initial));
     // First normalization establishes a baseline only; it never writes to the database.
     encode(state);
     let baseline=encode(state), revisions=new Map();
@@ -99,7 +109,13 @@
         baseline=next;retryBatch=null;failure=null;busy=false;pending=null;notify({busy:false});return true;
       }catch(e){failure=e;busy=true;pending=null;notify({busy:true,error:e});return false;}
     }
-    return {state, get busy(){return busy;},get failure(){return failure;},onStatus(fn){notify=fn;},save(){if(failure)throw Error('Föregående ändring är inte sparad.');if(!pending){busy=true;notify({busy:true});pending=Promise.resolve().then(flush);}return pending;},retry(){failure=null;return this.save();},exportUnsaved(){return clone(state);},diff, get baseline(){return baseline;}};
+    function previewImport(source){
+      if(tables.some(t=>initial['cdp_'+t].some(r=>!r.archived_at))||tables.some(t=>baseline['cdp_'+t].length))throw Error('Databasen innehåller redan uppgifter. Importen har stoppats så att inget skrivs över.');
+      if(!source||!Array.isArray(source.projects)||!Array.isArray(source.articles)||!Array.isArray(source.quotations))throw Error('Filen saknar projekt, artiklar eller offerter.');
+      if(Number(source.schemaVersion||0)>7)throw Error('Backupen kommer från en nyare appversion.');
+      return {projects:source.projects.length,articles:source.articles.length,quotations:source.quotations.length};
+    }
+    return {state, get busy(){return busy;},get failure(){return failure;},onStatus(fn){notify=fn;},save(){if(failure)throw Error('Föregående ändring är inte sparad.');if(!pending){busy=true;notify({busy:true});pending=Promise.resolve().then(flush);}return pending;},retry(){failure=null;return this.save();},exportUnsaved(){return clone(state);},diff,previewImport,importLocal(source){previewImport(source);const prepared=JSON.parse(JSON.stringify(source,(key,value)=>['_dbId','_responseId','_selectionId','_customerId','_itemIds','_deliveryId','_orderId','_sort'].includes(key)?undefined:value));prepared.workspaceId=state.workspaceId;window.CDPStructure.migrate(prepared);encode(prepared);Object.assign(state,prepared);return this.save();},get baseline(){return baseline;}};
   }
 
   function bindStatus(adapter){
@@ -118,3 +134,4 @@
   }
   window.CDPRemote={tables,encode,decode,createAdapter,async start(client){const {data,error}=await rpc(client,'cdp_read_state');if(error)throw error;const adapter=createAdapter(client,data);this.adapter=adapter;bindStatus(adapter);return adapter;}};
 })();
+

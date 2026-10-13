@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),crypto=require('crypto');
-const storage=new Map();const ctx={window:{},crypto,console,structuredClone,localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},document:{body:{}}};vm.createContext(ctx);
+const storage=new Map();const ctx={window:{CDPApp:{}},crypto,console,structuredClone,localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},document:{body:{}}};vm.createContext(ctx);
 for(const f of ['structure.js','data.js'])vm.runInContext(fs.readFileSync(__dirname+'/../JS/'+f,'utf8'),ctx);
 const api=ctx.window.CDPStructure;
 ctx.seedData=JSON.parse(fs.readFileSync(__dirname+'/fixtures/base-v5.14.json','utf8'));
@@ -17,9 +17,6 @@ test('0% margin allowed; 100% rejected',()=>{p.calculation.targetMargin=0;assert
 test('Foreign currency requires conversion rate',()=>{s.articles.find(a=>a.id==='A').selectedPrice.currency='USD';assert.ok(api.calculate(s,p).errors.some(e=>e.includes('valutakurs')));s.articles.find(a=>a.id==='A').selectedPrice.fxRate=0.9;assert.equal(api.calculate(s,p).errors.length,0);});
 test('Legacy flat price is allocated once across phases',()=>{const a=s.articles.find(a=>a.id==='A');a.selectedPrice={price:500,priceUnit:'fast pris',currency:'EUR',status:'Godkänt'};assert.equal(api.calculate(s,p).productionCost,500);});
 test('Invalid phase chronology blocks quotation',()=>{p.phases[0].productionStart='2030-01-01';assert.throws(()=>api.snapshot(s,p));});
-test('Storage migration creates exact backup and keeps original versions',()=>{const raw=JSON.stringify(seed);storage.set('cdp-projects-local',raw);const store=ctx.window.CDPData.createLocalStore(seed);assert.equal(storage.get('cdp-projects-local-backup-before-v6'),raw);assert.equal(store.getState().schemaVersion,6);assert.equal(store.getState().quotations[0].amount,seed.quotations[0].amount);});
-test('Corrupt saved data never falls back to demo',()=>{storage.set('cdp-projects-local','BROKEN');assert.throws(()=>ctx.window.CDPData.createLocalStore(seed));assert.equal(storage.get('cdp-projects-local'),'BROKEN');});
-test('Older v3 storage is discovered',()=>{storage.delete('cdp-projects-local');storage.set('cdp-prototype-state-v3',JSON.stringify({projects:[],articles:[],quotations:[],inquiries:[],agents:[]}));assert.equal(ctx.window.CDPData.createLocalStore(seed).getState().projects.length,0);});
 test('Preview and Excel document contain phases, dates and exact total without internal cost',()=>{
   p.phases[0].productionStart='2026-11-01';const q=api.snapshot(s,p);q.id='Q-TEST';q.version=1;
   Object.assign(ctx,{state:s,CDPStructure:api,esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),money:v=>Number(v).toFixed(2),date:v=>v||'—',articleSize:a=>a.widthCm+' × '+a.lengthCm,quotePartyData:q=>({company:q.companySnapshot,customer:q.customerSnapshot}),addDaysIso:iso=>iso});

@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cappelen Dimyr Projects affärs- och offertsystem.">
-  <title>Cappelen Dimyr Projects v6.3</title>
-  <link rel="stylesheet" href="CSS/styles.css?v=6.3">
-<link rel="stylesheet" href="CSS/v6.css?v=6.3">
+  <title>Cappelen Dimyr Projects v7.1</title>
+  <link rel="stylesheet" href="CSS/styles.css?v=7.1">
+<link rel="stylesheet" href="CSS/v6.css?v=7.1">
 </head>
 <body>
   <div id="login-screen">
@@ -30,7 +30,7 @@
 
   <div class="app-shell" hidden inert>
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects · v6.3</span></div></div>
+      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects · v7.1</span></div></div>
       <nav class="main-nav" aria-label="Huvudmeny">
         <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Översikt</button>
         <button class="nav-item" data-view="meetings"><span class="nav-icon">◷</span>MEETINGS <span class="nav-count muted" id="meetingNavCount"></span></button>
@@ -45,7 +45,7 @@
       </nav>
       <div class="sidebar-bottom">
         <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span>Inställningar</button>
-        <div class="profile-card"><div class="avatar" id="profileAvatar">DE</div><div class="profile-id"><strong id="profileName">Dick Eriksson</strong><span id="profileRole">Administratör</span></div><button type="button" data-logout>Logga ut</button></div>
+        <div class="profile-card"><div class="avatar" id="profileAvatar">DE</div><div class="profile-id"><strong id="profileName">Dick Eriksson</strong><span id="profileRole">Administratör</span></div><button type="button" class="button secondary" data-logout>Logga ut</button></div>
       </div>
     </aside>
 
@@ -53,7 +53,7 @@
       <header class="topbar">
         <button class="menu-toggle" id="menuToggle" aria-label="Visa meny">☰</button>
         <div class="breadcrumbs"><span>Projects</span><b>/</b><strong id="breadcrumbCurrent">Översikt</strong></div>
-        <div class="topbar-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Sök projekt, kund eller offert…"></label><button class="button secondary" type="button" data-logout>Logga ut</button><button class="icon-button" aria-label="Notiser">♢<span class="notification-dot"></span></button></div>
+        <div class="topbar-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Sök projekt, kund eller offert…"></label><button type="button" class="button secondary" data-logout>Logga ut</button><button class="icon-button" aria-label="Notiser">♢<span class="notification-dot"></span></button></div>
       </header>
 
       <div class="content-wrap">
@@ -108,8 +108,8 @@
   </div>
   <div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="vendor/supabase.js?v=6.3"></script>
-  <script src="JS/supabase-config.js?v=6.3"></script>
-  <script src="JS/auth.js?v=6.3"></script>
+  <script src="vendor/supabase.js?v=7.1"></script>
+  <script src="JS/supabase-config.js?v=7.1"></script>
+  <script src="JS/auth.js?v=7.1"></script>
 </body>
 </html>
