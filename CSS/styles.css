@@ -215,3 +215,42 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .topbar-actions .button.secondary { white-space: nowrap; }
 
 #cloud-save[hidden]{display:none!important}#cloud-save{position:fixed;inset:0;z-index:100000;background:#2228;display:grid;place-items:center;padding:24px}.cloud-card{background:#fff;color:#242720;padding:28px;border-radius:12px;max-width:650px;box-shadow:0 10px 60px #0004}.cloud-card button{padding:12px;margin:6px;border:1px solid #ccc;border-radius:6px;cursor:pointer}.cloud-card p{white-space:pre-wrap}
+
+/* Tillverkare: proportions from the supplied reference, scoped to this view. */
+#view-manufacturers .page-heading { align-items: flex-start; flex-wrap: wrap; gap: 20px; margin-bottom: 30px; }
+#view-manufacturers .page-heading > div { min-width: 0; }
+#view-manufacturers .eyebrow { font-size: 11px !important; letter-spacing: .16em; margin-bottom: 0; }
+#view-manufacturers h1 { font-size: 44px; line-height: 1.15; margin-bottom: 12px; }
+#view-manufacturers .page-heading p:not(.eyebrow) { font-size: 15px; line-height: 1.5; }
+#manufacturerGrid { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+#manufacturerGrid:empty { display: none; }
+#manufacturerGrid .manufacturer-row { display: block; width: 100%; min-height: 48px; padding: 14px 18px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 14px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+#manufacturerGrid .manufacturer-row:last-child { border-bottom: 0; }
+#manufacturerGrid .manufacturer-row:hover { background: var(--sage-pale); }
+#manufacturerGrid .manufacturer-row:focus-visible { outline: 2px solid var(--sage-dark); outline-offset: -3px; background: var(--sage-pale); }
+@media (max-width: 540px) {
+  #view-manufacturers h1 { font-size: 36px; }
+}
+/* Keep each phase aligned with its production and delivery dates. */
+.rfq-phase-value { white-space: nowrap; min-height: 1.5em; }
+
+.phase-date { font: inherit; padding: 8px 10px; border: 1px solid #d8ddd2; border-radius: 6px; background: #fff; color: inherit; min-width: 150px; color-scheme: light; }
+.phase-article-action { text-align: right; }
+
+/* Project RFQ and internal supplier preview */
+.rfq-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; }
+.rfq-progress { display:block; margin-top:6px; color:#687163; font-size:12px; }
+.rfq-green { background:#e3eddf!important; color:#355633!important; border:1px solid #8ca684!important; }
+.rfq-status { display:inline-block; padding:8px 12px; border-radius:6px; background:#f2f0e9; }
+.project-rfq-lines { min-width:1050px; }
+.project-rfq-lines td { vertical-align:top; }
+.project-rfq-lines input,.project-rfq-lines select { font:inherit; border:1px solid #d8ddd2; border-radius:5px; padding:8px; width:100%; min-width:110px; }
+.project-rfq-lines input:disabled,.project-rfq-lines select:disabled { background:#f0f1ed; color:#73776d; }
+.project-rfq-lines [data-answer-save] { display:block; color:#62715b; font-size:11px; }
+.supplier-test-banner { padding:12px 16px; border:1px solid #e2d1a6; background:#faf4e6; border-radius:6px; margin-bottom:20px; }
+.supplier-preview .field { max-width:420px; }
+.supplier-preview .section-action { margin-top:26px; }
+.rfq-bom-spec { display:grid; grid-template-columns:150px 1fr; gap:10px; }
+.rfq-bom-spec dd { margin:0; white-space:pre-wrap; }
+.project-rfq-manufacturers th:first-child { width:25%; }
+.supplier-rfq-list>tbody>tr>td:first-child { overflow-wrap:anywhere; }

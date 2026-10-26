@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),crypto=require('crypto');const c={window:{},crypto};vm.createContext(c);vm.runInContext(fs.readFileSync(__dirname+'/../JS/structure.js','utf8'),c);const api=c.window.CDPStructure,s=api.migrate({projects:[],leads:[],articles:[],quotations:[]});let tests=0;function test(n,f){f();console.log('PASS '+n);tests++;}
 let p;
-test('Direct project needs no Lead and gets initial phase/customer',()=>{p=api.createProject(s,{name:'Direct',customer:'Customer',value:1000,probability:60});assert.equal(s.leads.length,0);assert.equal(p.phases.length,1);assert.equal(p.customerData.billing.name,'Customer');assert.equal(p.phase,'Kalkyl');});
+test('Direct project needs no Lead and starts without phases',()=>{p=api.createProject(s,{name:'Direct',customer:'Customer',value:1000,probability:60});assert.equal(s.leads.length,0);assert.equal(p.phases.length,0);assert.equal(p.customerData.billing.name,'Customer');assert.equal(p.phase,'Kalkyl');});
 test('Project IDs unique; names do not merge',()=>{const q=api.createProject(s,{name:'Direct'});assert.notEqual(q.id,p.id);assert.equal(s.projects.length,2);});
 test('Invalid input does not create a project',()=>{assert.throws(()=>api.createProject(s,{name:' '}));assert.throws(()=>api.createProject(s,{name:'bad',probability:101}));assert.equal(s.projects.length,2);});
 s.quotations=[{projectId:p.id,status:'Skickad',amount:1000,articleSnapshots:[{name:'Keep'}]},{projectId:p.id,status:'Utkast',amount:2000},{projectId:p.id,status:'Ersatt',amount:900}];

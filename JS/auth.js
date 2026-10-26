@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.1";
+  const ASSET_VERSION = "7.9.6";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -112,6 +112,7 @@
       try {
         await loadScript(`JS/structure.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/workflow.js?v=${ASSET_VERSION}`);
+        await loadScript(`JS/rfq-project.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/remote.js?v=${ASSET_VERSION}`);
         await window.CDPRemote.start(client);
         await loadScript(`JS/data.js?v=${ASSET_VERSION}`);

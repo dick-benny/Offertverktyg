@@ -2,3 +2,29 @@
 .v6-preview-bar{display:flex;align-items:center;gap:12px;padding:12px 22px;border-bottom:1px solid #ddd;background:#f4f5f0}.v6-preview-bar strong{margin-right:auto}#v6PreviewOverlay{position:fixed;inset:0;z-index:10000;background:white;display:flex;flex-direction:column}#v6PreviewOverlay iframe{border:0;flex:1;width:100%;background:#fff}
 .v7-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:16px 0}.v7-toolbar .field{flex:1;min-width:190px}#v7Bom input,#v7Bom textarea{max-width:100%}#v7Bom [data-bom-row] input{width:100%;min-width:70px;padding:9px;border:1px solid #ddd;border-radius:4px}#v7Bom .modal-footer{position:sticky;bottom:0;background:#fff;flex-wrap:wrap;z-index:2}#v7Bom .table-scroll{margin-bottom:15px}.local-badge{font-size:11px;padding:6px 9px;border-radius:12px;background:#e6ebe3;color:#425440}.v7-toolbar button{white-space:nowrap}button:disabled{cursor:not-allowed;opacity:.55}pre.preserve-lines{overflow-wrap:anywhere}#v7Butler{margin-top:20px}#v7Bom .field{margin-bottom:12px}@media(max-width:700px){.v7-toolbar{align-items:stretch;flex-direction:column}.v7-toolbar .field{width:100%}#v7Bom .modal-footer{position:static}}
 @media(max-width:700px){.modal-backdrop{padding:12px}.modal{width:100%;max-width:calc(100vw - 24px);min-width:0}.modal-body,.modal-header{padding:16px}.v7-toolbar .field{min-width:0}.modal-footer{gap:8px;padding:12px}}
+
+/* Compact project BOM only; other forms keep their existing layout. */
+#v7Bom .form-grid,#articleForm .form-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px}
+#v7Bom .field,#articleForm .field{min-width:0;margin-bottom:4px;gap:3px}
+#v7Bom .field input,#v7Bom .field select,#articleForm .field input,#articleForm .field select{width:100%;min-width:0;min-height:32px;height:32px;padding:4px 8px;font-size:13px}
+#v7Bom textarea,#articleForm textarea{min-height:56px;height:56px;padding:6px 8px;font-size:13px}
+#v7Bom .v7-toolbar{margin:8px 0;gap:8px}
+#v7Bom .v6-card{padding:10px;margin:10px 0}
+#v7Bom p{margin:6px 0}#v7Bom h3{margin:10px 0 6px}
+#v7Bom [data-bom-row] input{min-width:48px;padding:4px;height:32px}
+#v7Bom td,#v7Bom th{padding:5px}
+#v7Bom .modal-footer{padding:10px 0;gap:8px}
+@media(max-width:850px){#v7Bom .form-grid,#articleForm .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){#v7Bom .form-grid,#articleForm .form-grid{grid-template-columns:1fr}#v7Bom .modal-footer{position:static}}
+#v7Bom .field,#articleForm .field{margin-top:4px}
+
+.bom-new-article{margin-left:auto}.bom-functions{position:relative;margin-left:auto}.bom-functions summary{list-style:none;cursor:pointer}.bom-functions-menu{position:absolute;right:0;top:100%;z-index:10;width:260px;max-width:75vw;padding:8px;background:#fff;border:1px solid #d9ddd2;border-radius:8px;box-shadow:0 6px 20px #0002}.bom-functions-menu button,.bom-functions-menu a{display:block;width:100%;padding:10px;text-align:left;background:none;border:0;color:#334830;font:inherit;overflow-wrap:anywhere}.bom-functions-menu a{border-top:1px solid #eee}.bom-functions-menu button:hover,.bom-functions-menu a:hover{background:#eef1e9}#bomFunctionPanel:not([hidden]){padding:16px;margin-bottom:16px;border:1px solid #d9ddd2;border-radius:8px}#bomFunctionPanel>.button{margin:8px 8px 0 0}.modal-header:has(.bom-functions){gap:12px}.modal-header:has(.bom-functions) h2{min-width:0;overflow-wrap:anywhere}
+
+.cad-field-label{display:block;font-size:11px;font-weight:600;margin-bottom:6px}.cad-dropdown{position:relative}.cad-dropdown summary{border:1px solid #d9ddd2;border-radius:5px;padding:9px;cursor:pointer;background:#fff;font-size:12px}.cad-dropdown-menu{position:absolute;z-index:5;left:0;right:0;top:100%;background:#fff;border:1px solid #d9ddd2;border-radius:5px;box-shadow:0 6px 18px #0002;max-height:240px;overflow:auto}.cad-dropdown-menu a,.cad-dropdown-menu span{display:block;padding:10px;overflow-wrap:anywhere}.cad-dropdown-menu a:hover{background:#eef1e9}#cadLinkDialog{width:min(440px,calc(100vw - 32px));box-sizing:border-box;border:1px solid #d9ddd2;border-radius:12px;padding:24px;color:#252c24}#cadLinkDialog::backdrop{background:#0006}#cadLinkDialog .field{display:block;margin:16px 0}#cadLinkDialog input{box-sizing:border-box;width:100%;padding:10px;border:1px solid #d9ddd2;border-radius:5px}#cadLinkDialog .modal-footer{padding:16px 0 0;margin-top:16px}.cad-error{color:#9a2828}
+
+/* Compact dimensions share half-sized tracks; other BOM fields retain their width. */
+#v7Bom .form-grid{grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-flow:row dense}
+#v7Bom .form-grid>.field{grid-column:span 2}
+#v7Bom .form-grid>.field:has([name="widthCm"]),#v7Bom .form-grid>.field:has([name="lengthCm"]),#v7Bom .form-grid>.field:has([name="pileHeight"]){grid-column:span 1}
+@media(max-width:850px){#v7Bom .form-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:480px){#v7Bom .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

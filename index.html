@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cappelen Dimyr Projects affärs- och offertsystem.">
-  <title>Cappelen Dimyr Projects v7.1</title>
-  <link rel="stylesheet" href="CSS/styles.css?v=7.1">
-<link rel="stylesheet" href="CSS/v6.css?v=7.1">
+  <title>Cappelen Dimyr Projects v7.9</title>
+  <link rel="stylesheet" href="CSS/styles.css?v=7.9.6">
+<link rel="stylesheet" href="CSS/v6.css?v=7.9">
 </head>
 <body>
   <div id="login-screen">
@@ -30,7 +30,7 @@
 
   <div class="app-shell" hidden inert>
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects · v7.1</span></div></div>
+      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects · v7.9</span></div></div>
       <nav class="main-nav" aria-label="Huvudmeny">
         <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Översikt</button>
         <button class="nav-item" data-view="meetings"><span class="nav-icon">◷</span>MEETINGS <span class="nav-count muted" id="meetingNavCount"></span></button>
@@ -85,11 +85,11 @@
           <div class="kanban" id="projectKanban"></div>
         </section>
 
-        <section class="view" id="view-articles" data-title="Artiklar">
-          <div class="page-heading compact"><div><p class="eyebrow">PROJEKTARTIKLAR & LEVERANTÖRSPRIS</p><h1>Artiklar</h1><p>Storlek, form, tillverkarens pris/kvm, kostnad och prishistorik.</p></div><button class="button primary" data-action="new-article">＋ Ny artikel</button></div>
+        <section class="view" id="view-articles" data-title="Artikel databas">
+          <div class="page-heading compact"><div><p class="eyebrow">PROJEKTARTIKLAR & LEVERANTÖRSPRIS</p><h1>Artikel databas</h1></div><button class="button primary" data-action="new-article">＋ Ny artikel</button></div>
           <div class="article-summary" id="articleSummary"></div>
           <div class="toolbar"><label class="table-search"><span>⌕</span><input id="articleSearch" type="search" placeholder="Sök artikel…"></label><select id="articleProjectFilter" aria-label="Filtrera projekt"></select><select id="articleStatusFilter" aria-label="Filtrera status"><option value="all">Alla statusar</option><option>Förfrågan</option><option>Förhandlas</option><option>Godkänt</option></select><span class="result-count" id="articleResultCount"></span></div>
-          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>Artikel</th><th>Projekt</th><th>Benämning</th><th>Storlek</th><th>Kvm</th><th>Tillverkare</th><th>Produktionspris</th><th>Kostnad</th><th>Prisstatus</th><th></th></tr></thead><tbody id="articleRows"></tbody></table></div></article>
+          <article class="panel flush"><div class="table-scroll"><table><thead><tr><th>Artikelnamn</th><th>Produktionspris/kvm</th><th></th></tr></thead><tbody id="articleRows"></tbody></table></div></article>
         </section>
 
         <section class="view" id="view-quotations" data-title="Offerter">
@@ -101,15 +101,16 @@
 
         <section class="view" id="view-agents" data-title="Agenter"><div class="page-heading compact"><div><p class="eyebrow">MARKNAD & INTRODUKTION</p><h1>Agenter</h1><p>Territorier, registrerade möjligheter, utfall och provision.</p></div><button class="button primary" data-action="new-agent">＋ Ny agent</button></div><div class="agent-grid" id="agentGrid"></div></section>
         <section class="view" id="view-customers" data-title="Kunder"><div class="page-heading compact"><div><p class="eyebrow">RELATIONER</p><h1>Kunder & kontakter</h1><p>Beställare, arkitekter, designers och inköpsbolag.</p></div></div><div class="empty-state"><div class="empty-icon">○</div><h2>Kundregistret är nästa steg</h2><p>Kunduppgifter sparas via projektens Översikt.</p></div></section>
-        <section class="view" id="view-manufacturers" data-title="Tillverkare"><div class="page-heading compact"><div><p class="eyebrow">INKÖP & PRODUKTION</p><h1>Tillverkare</h1><p>Masterregister för de tillverkare som kan väljas på projektartiklar och priser.</p></div><button class="button primary" data-action="new-manufacturer">＋ Ny tillverkare</button></div><div class="agent-grid" id="manufacturerGrid"></div></section>
+        <section class="view" id="view-manufacturers" data-title="Tillverkare"><div class="page-heading compact"><div><p class="eyebrow">INKÖP & PRODUKTION</p><h1>Tillverkare</h1><p>Masterregister för de tillverkare som kan väljas på projektartiklar och priser.</p></div><button class="button primary" data-action="new-manufacturer">＋ Ny tillverkare</button></div><p><button class="button secondary" data-supplier-preview>Testa tillverkarportal</button></p><div class="agent-grid" id="manufacturerGrid"></div></section>
         <section class="view" id="view-settings" data-title="Inställningar"><div class="page-heading compact"><div><p class="eyebrow">ADMINISTRATION</p><h1>Inställningar</h1><p>Företagsuppgifter som används som masterdata i nya offerter.</p></div></div><form id="companySettingsForm" class="settings-grid"><article class="panel company-settings"><h2>Företagsuppgifter</h2><div class="form-grid"><label class="field full"><span>Företagsnamn</span><input name="name" required></label><label class="field full"><span>Adress</span><input name="address"></label><label class="field"><span>ZIP</span><input name="zip"></label><label class="field"><span>City</span><input name="city"></label><label class="field"><span>Country</span><input name="country"></label><label class="field"><span>Org nummer</span><input name="orgNumber"></label><label class="field"><span>VAT nummer</span><input name="vatNumber"></label><label class="field"><span>EORI</span><input name="eori"></label><label class="field full"><span>IBAN</span><input name="iban"></label><label class="field"><span>BIC / SWIFT</span><input name="bic"></label><label class="field"><span>E-mail</span><input name="email" type="email"></label><label class="field"><span>Telefon</span><input name="phone"></label><label class="field"><span>Web</span><input name="web"></label></div><div class="settings-actions"><button class="button primary">Spara företagsuppgifter</button></div></article><article class="panel"><h2>Offertregler</h2><p class="detail-sub">Kalkylens standardmarginal är tills vidare 45 %. Offertversionen sparar en snapshot av både företags- och kunduppgifter.</p><label class="field"><span>Standardmarginal</span><div class="input-suffix"><input value="45" type="number" disabled><span>%</span></div></label><label class="field"><span>Marginal som kräver godkännande</span><div class="input-suffix"><input value="35" type="number" disabled><span>%</span></div></label></article></form></section>
       </div>
     </main>
   </div>
   <div class="modal-backdrop" id="modalBackdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="vendor/supabase.js?v=7.1"></script>
-  <script src="JS/supabase-config.js?v=7.1"></script>
-  <script src="JS/auth.js?v=7.1"></script>
+  <script src="vendor/supabase.js?v=7.9"></script>
+  <script src="JS/supabase-config.js?v=7.9"></script>
+  <script src="JS/auth.js?v=7.9.6"></script>
 </body>
 </html>
+

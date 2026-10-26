@@ -37,7 +37,7 @@
       const c=clone(l.customerData||{}),b=c.billing||{...c,name:c.name||l.customer||''};
       const year=String(new Date().getFullYear()).slice(-2),prefix='P-'+year+'-';
       const number=Math.max(0,...s.projects.map(p=>p.id.startsWith(prefix)?Number(p.id.slice(prefix.length))||0:0))+1;
-      p={id:window.CDPRemote?crypto.randomUUID():prefix+String(number).padStart(4,'0'),sourceLeadId:id,name:l.name,customer:l.customer||b.name||'',country:l.country||'',currency:l.currency||'EUR',value:Number(l.value)||0,probability:Number(l.probability)||20,owner:'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:'Planera artiklar och faser',agent:l.agent||'',customerData:{sameAsBilling:c.sameAsBilling!==false,billing:b,delivery:c.delivery||clone(b)},preliminaryScope:clone(l.preliminaryScope||[]),designFiles:clone(l.designFiles||[]),createdAt:today()};
+      p={id:window.CDPRemote?crypto.randomUUID():prefix+String(number).padStart(4,'0'),sourceLeadId:id,phases:[],name:l.name,customer:l.customer||b.name||'',country:l.country||'',currency:l.currency||'EUR',value:Number(l.value)||0,probability:Number(l.probability)||20,owner:'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:'Planera artiklar och faser',agent:l.agent||'',customerData:{sameAsBilling:c.sameAsBilling!==false,billing:b,delivery:c.delivery||clone(b)},preliminaryScope:clone(l.preliminaryScope||[]),designFiles:clone(l.designFiles||[]),createdAt:today()};
       s.projects.unshift(p);migrate(s);
     }
     l.projectId=p.id;l.status='Go';l.convertedAt=today();
@@ -60,7 +60,7 @@
       const items=ph.items.map(i=>{
         const a=s.articles.find(a=>a.id===i.articleId&&a.projectId===p.id);
         if(!a){errors.push(ph.name+': artikel saknas.');return null;}
-        const r=price(a),qty=Number(i.quantity),rate=r.currency&&r.currency!==p.currency?Number(r.fxRate):1;
+        const selected=price(a),r=selected.phasePrices?{...selected,pricePerSqm:selected.phasePrices[ph.id]}:selected,qty=Number(i.quantity),rate=r.currency&&r.currency!==p.currency?Number(r.fxRate):1;
         if(!Number.isFinite(qty)||qty<=0)errors.push(a.name+': antal måste vara större än 0.');
         if(!Number.isFinite(rate)||rate<=0)errors.push(a.name+': ange valutakurs till '+p.currency+'.');
         if(!Number.isFinite(Number(r.pricePerSqm))||Number(r.pricePerSqm)<0)errors.push(a.name+': ogiltigt produktionspris.');
@@ -99,7 +99,7 @@
     const n=Math.max(0,...s.projects.map(p=>p.id.startsWith(prefix)?Number(p.id.slice(prefix.length))||0:0))+1;
     const customer=String(v.customer||'').trim(),country=String(v.country||'').trim();
     const billing={name:customer,country,address:'',zip:'',city:'',vatNumber:'',contact:'',email:''};
-    const p={id:window.CDPRemote?crypto.randomUUID():prefix+String(n).padStart(4,'0'),name,customer,country,currency:v.currency||'EUR',value,probability,owner:v.owner||'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:'Planera artiklar och faser',createdAt:today(),createdDirectly:true,description:v.description||'',customerData:{sameAsBilling:true,billing,delivery:{...billing,phone:''}},preliminaryScope:[],designFiles:[]};
+    const p={id:window.CDPRemote?crypto.randomUUID():prefix+String(n).padStart(4,'0'),name,customer,country,currency:v.currency||'EUR',value,probability,owner:v.owner||'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:'Planera artiklar och faser',createdAt:today(),createdDirectly:true,phases:[],description:v.description||'',customerData:{sameAsBilling:true,billing,delivery:{...billing,phone:''}},preliminaryScope:[],designFiles:[]};
     s.projects.unshift(p);migrate(s);return p;
   }
   function loseProject(s,id,v){
