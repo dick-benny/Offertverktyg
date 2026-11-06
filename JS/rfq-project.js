@@ -4,7 +4,7 @@
   const S=window.CDPStructure,copy=S.clone,now=()=>new Date().toISOString();
   const unique=a=>[...new Set(a)];
   const key=(articleId,phaseId)=>JSON.stringify([articleId,phaseId||'']);
-  function content(state,p,ids,sampleIds){
+  function content(state,p,ids,sampleIds,targets={}){
     const lines=[];
     for(const id of ids){
       const a=state.articles.find(a=>a.id===id&&a.projectId===p.id);if(!a)continue;
@@ -12,8 +12,8 @@
       // Storage identities and ordering are not supplier specification changes.
       spec.bom=(a.bom||[]).map(b=>({name:b.name||'',quantity:Number(b.quantity)||0,unit:b.unit||'st',notes:b.notes||''}));
       const phases=(p.phases||[]).flatMap(ph=>(ph.items||[]).filter(i=>i.articleId===id).map(i=>({phaseId:ph.id,phase:ph.name,quantity:Number(i.quantity),productionStart:ph.productionStart||'',deliveryDate:ph.deliveryDate||''})));
-      for(const ph of phases.length?phases:[{phaseId:'',phase:'Ej tilldelad fas',quantity:Number(a.quantity)||1,productionStart:'',deliveryDate:''}])lines.push({key:key(id,ph.phaseId),articleId:id,article:copy(spec),...ph,sample:false,area:S.area(a)});
-      if(sampleIds.includes(id))lines.push({key:'sample:'+id,articleId:id,article:copy(spec),phaseId:'',phase:'',quantity:1,productionStart:'',deliveryDate:'ASAP',sample:true,area:0});
+      for(const ph of phases.length?phases:[{phaseId:'',phase:'Ej tilldelad fas',quantity:Number(a.quantity)||1,productionStart:'',deliveryDate:''}])lines.push({key:key(id,ph.phaseId),articleId:id,article:copy(spec),...ph,sample:false,...(targets[id]!=null?{targetPrice:targets[id]}:{}),area:S.area(a)});
+      if(sampleIds.includes(id))lines.push({key:'sample:'+id,articleId:id,article:copy(spec),sampleDetails:S.articleSample(state,a),phaseId:'',phase:'',quantity:1,productionStart:'',deliveryDate:'ASAP',sample:true,area:0});
     }
     return lines;
   }
@@ -24,21 +24,22 @@
     if(samples.some(id=>!ids.includes(id)))throw Error('Sample måste höra till en vald artikel.');
   }
   function recipient(g,mid){const r=g.recipients.find(r=>r.manufacturerId===mid);if(!r)throw Error('Tillverkaren är inte vald för denna RFQ.');return r;}
-  function configure(state,p,ids,mids,samples=[]){
-    ids=unique(ids);mids=unique(mids);samples=unique(samples);validateConfig(state,p,ids,mids,samples);
+  function configure(state,p,ids,mids,samples=[],targets){
+    ids=unique(ids);mids=unique(mids);samples=ids.slice();validateConfig(state,p,ids,mids,samples);
+    const nextTargets={};for(const id of ids){const value=targets===undefined?p.projectRfq?.targetPrices?.[id]:targets[id];if(value===''||value==null)continue;const n=Number(value);if(!Number.isFinite(n)||n<=0)throw Error('Targetpris måste vara större än 0 EUR/m², eller lämnas tomt.');nextTargets[id]=n;}
     if(!p.projectRfq){
       const id=S.uid('RFQ');
-      p.projectRfq={id,number:'RFQ-'+new Date().getFullYear()+'-'+id.slice(4).toUpperCase(),createdAt:now(),revision:1,articleIds:ids,sampleIds:samples,lines:content(state,p,ids,samples),recipients:[],history:[]};
+      p.projectRfq={id,number:'RFQ-'+new Date().getFullYear()+'-'+id.slice(4).toUpperCase(),createdAt:now(),revision:1,articleIds:ids,sampleIds:samples,targetPrices:nextTargets,lines:content(state,p,ids,samples,nextTargets),recipients:[],history:[]};
     }
     const g=p.projectRfq;
-    g.articleIds=ids;g.sampleIds=samples;
+    g.articleIds=ids;g.sampleIds=samples;g.targetPrices=nextTargets;
     // Recipients cannot be removed implicitly; withdrawal is a separate action.
     mids.forEach(mid=>{if(!g.recipients.some(r=>r.manufacturerId===mid))g.recipients.push({manufacturerId:mid,answers:{},history:[],completedAt:null,publishedRevision:0,withdrawn:false});});
     sync(state,p);return g;
   }
   function sync(state,p){
     const g=p.projectRfq;if(!g)return;
-    const lines=content(state,p,g.articleIds,g.sampleIds);
+    const lines=content(state,p,g.articleIds,g.sampleIds,g.targetPrices);
     const canonical=x=>JSON.stringify(x,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
     if(canonical(lines)===canonical(g.lines))return;
     g.history.push({revision:g.revision,at:now(),lines:copy(g.lines)});g.revision++;g.lines=lines;
@@ -58,7 +59,7 @@
     if(g.lines.some(l=>!l.sample&&(!Number.isFinite(l.area)||l.area<=0||!Number.isSafeInteger(l.quantity)||l.quantity<1||!l.phaseId||!l.deliveryDate||!l.productionStart||l.productionStart>l.deliveryDate)))throw Error('Cappelen behöver kontrollera BOM-mått, fas, antal, produktionsstart och leveransdatum.');
   }
   function publish(state,p,mid){
-    sync(state,p);const g=p.projectRfq,r=recipient(g,mid);validateLines(g);
+    p.projectRfq.sampleIds=p.projectRfq.articleIds.slice();sync(state,p);const g=p.projectRfq,r=recipient(g,mid);validateLines(g);
     if(!state.manufacturers.some(m=>m.id===mid&&m.active!==false))throw Error('Tillverkaren är inaktiv.');
     if(r.publishedRevision===g.revision&&!r.withdrawn)return;
     r.sentAt=now();r.publishedRevision=g.revision;r.withdrawn=false;r.history.push({type:'published',revision:g.revision,at:r.sentAt});
@@ -116,4 +117,29 @@
     response.phasePrices=Object.fromEntries(lines.map(l=>[l.phaseId,r.answers[l.key].price]));response.projectRfqId=g.id;response.projectRfqRevision=g.revision;S.selectResponse(state,response);return response;
   }
   window.CDPProjectRfq={configure,sync,status,publish,saveAnswer,complete,reopen,withdraw,adopt,supplierView,selectArticle,recipient};
+})();
+/* Model-sample purchase orders. Sent specifications are immutable snapshots. */
+(() => {
+ const S=window.CDPStructure,copy=S.clone,now=()=>new Date().toISOString();
+ const statuses=['Beställd','Skickad','Levererad'],reviews=['Inväntar bedömning','Godkänd','Ändring krävs'];
+ function get(p,id){const o=(p.modelSampleOrders||[]).find(o=>o.id===id);if(!o)throw Error('Beställningen saknas.');return o;}
+ function draft(state,p,mid,values,id){
+  const old=id?get(p,id):null;if(old?.sentAt)throw Error('Skickad beställning kan inte ändras. Skapa en ny beställning.');
+  if(!p.projectRfq?.recipients.some(r=>r.manufacturerId===mid)||!state.manufacturers.some(m=>m.id===mid&&m.active!==false))throw Error('Välj en aktiv tillverkare från projektets RFQ.');
+  if(!values.lines?.length)throw Error('Välj minst en artikel.');
+  const seen=new Set();const lines=values.lines.map(v=>{const a=state.articles.find(a=>a.id===v.articleId&&a.projectId===p.id);if(!a||seen.has(a.id)||!p.projectRfq.articleIds.includes(a.id))throw Error('Välj artiklar från projektets RFQ.');seen.add(a.id);
+   const quantity=Number(v.quantity),price=v.price===''||v.price==null?null:Number(v.price);if(!Number.isSafeInteger(quantity)||quantity<1||price!==null&&(!Number.isFinite(price)||price<0))throw Error('Kontrollera antal och pris.');
+   return {articleId:a.id,article:copy({id:a.id,code:a.code||"",name:a.name,...S.specification(a)}),area:S.area(a),quantity,price,review:'Inväntar bedömning',comment:'',reviewHistory:[]};});
+  const o={id:old?.id||S.uid('MS'),number:old?.number||'MS-'+new Date().getFullYear()+'-'+String((p.modelSampleSequence||0)+1).padStart(3,'0'),projectId:p.id,projectName:p.name,manufacturerId:mid,manufacturerName:state.manufacturers.find(m=>m.id===mid).name,createdAt:old?.createdAt||now(),status:'Utkast',currency:'EUR',deliveryAddress:String(values.deliveryAddress||'').trim(),contact:String(values.contact||'').trim(),deliveryDate:values.deliveryDate||'',instructions:String(values.instructions||''),lines,history:old?.history||[]};
+  if(old)Object.assign(old,o);else{p.modelSampleSequence=(p.modelSampleSequence||0)+1;(p.modelSampleOrders||=[]).push(o);}return old||o;
+ }
+ function send(state,p,id){const o=get(p,id);if(o.sentAt)return o;
+  if(!state.manufacturers.some(m=>m.id===o.manufacturerId&&m.active!==false))throw Error('Tillverkaren är inaktiv.');
+  if(!o.deliveryAddress||!o.contact||!/^\d{4}-\d{2}-\d{2}$/.test(o.deliveryDate)||new Date(o.deliveryDate).toISOString().slice(0,10)!==o.deliveryDate||o.lines.some(l=>!(l.area>0)||l.price===null))throw Error('Ange hotellets adress, kontakt, giltigt leveransdatum, BOM-mått och överenskommet styckpris (0 är tillåtet).');
+  o.sentAt=now();o.status='Beställd';o.history.push({at:o.sentAt,status:o.status});return o;
+ }
+ function progress(p,id,status){const o=get(p,id);if(!o.sentAt||!statuses.includes(status)||statuses.indexOf(status)<statuses.indexOf(o.status))throw Error('Ogiltig statusändring.');if(status!==o.status){o.status=status;o.history.push({at:now(),status});}return o;}
+ function review(p,id,articleId,value,comment){const o=get(p,id),l=o.lines.find(l=>l.articleId===articleId);if(!o.sentAt||!l||!reviews.includes(value))throw Error('Ogiltig bedömning.');l.review=value;l.comment=String(comment||'');l.reviewHistory.push({at:now(),review:value,comment:l.comment});}
+ function supplier(state,mid){return state.projects.flatMap(p=>(p.modelSampleOrders||[]).filter(o=>o.manufacturerId===mid&&o.sentAt).map(copy));}
+ window.CDPModelSamples={draft,send,get,progress,review,supplier,statuses,reviews};
 })();

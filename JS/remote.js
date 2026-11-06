@@ -6,7 +6,7 @@
   const canonical = x => JSON.stringify(x, function(k,v) { return v && typeof v==='object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])) : v; });
   const uuid = () => crypto.randomUUID();
   const blankCompany = () => Object.fromEntries(['name','address','zip','city','country','orgNumber','vatNumber','eori','iban','bic','email','phone','web'].map(k=>[k,'']));
-  const empty = () => ({schemaVersion:7,workspaceId:'supabase:'+(window.OFFERTVERKTYG_SUPABASE?.url||'shared'),company:blankCompany(),meetings:[],leads:[],inquiries:[],projects:[],articles:[],rfqs:[],quotations:[],manufacturers:[],agents:[],samples:[],articleTemplates:[]});
+  const empty = () => ({schemaVersion:7,workspaceId:'supabase:'+(window.OFFERTVERKTYG_SUPABASE?.url||'shared'),company:blankCompany(),customers:[],meetings:[],leads:[],inquiries:[],projects:[],articles:[],rfqs:[],quotations:[],manufacturers:[],agents:[],samples:[],articleTemplates:[]});
   const metadata = ['status','sentAt','acceptedAt','acceptedBy','acceptanceMethod','poNumber','acceptedAmount','deliveryDate','acceptanceComment'];
   const without = (x, keys) => Object.fromEntries(Object.entries(x).filter(([k])=>!keys.includes(k)));
   const number = x => Number(x || 0);
@@ -27,6 +27,7 @@
     const appData=s.company._projectsApp;
     if(appData){s.articleTemplates=clone(appData.articleTemplates||[]);s.inquiries=clone(appData.inquiries||[]);}
     delete s.company._projectsApp;
+    s.customers=get('customers').map(r=>{const billing=clone(r.billing||{}),meta=billing._registry||{};delete billing._registry;return {...meta,id:r.id,_dbId:r.id,name:r.name,billing,delivery:clone(r.delivery||{}),sameAsBilling:r.same_as_billing!==false,roles:meta.roles||['Kund'],contacts:meta.contacts||((billing.contact||billing.email)?[{id:r.id+'-contact',name:billing.contact||billing.email,email:billing.email||'',phone:'',primary:true,active:true}]:[]),active:meta.active!==false};});
     s.manufacturers=get('manufacturers').map(r=>({...item(r),id:ids[r.id],name:r.name,country:r.country||'',contact:r.contact||'',email:r.email||'',phone:r.phone||'',currency:r.currency,active:r.active}));
     s.agents=get('agents').map(r=>({...item(r),id:ids[r.id],name:r.name,active:r.active}));
     s.meetings=get('meetings').map(r=>({...item(r),id:ids[r.id],visitor:r.title}));
@@ -60,9 +61,14 @@
     for(const a of s.agents)put('agents',a,{name:a.name,active:a.active!==false,details:details(a)});
     for(const m of s.meetings)put('meetings',m,{title:m.visitor,meeting_at:iso(m.time),details:details(m)});
     for(const l of s.leads)put('leads',l,{name:l.name,meeting_id:l.meetingId?find(s.meetings,l.meetingId):null,status:l.status||'Aktivt',details:details(l)});
+    s.customers||=[];
+    for(const p of s.projects)if(p.customer?.trim()&&!s.customers.some(c=>(c._dbId||c.id)===p._customerId)){
+      if(!p._customerId){const matches=s.customers.filter(c=>c.active!==false&&c.name.trim().toLocaleLowerCase('sv')===p.customer.trim().toLocaleLowerCase('sv'));if(matches.length===1){p._customerId=matches[0]._dbId||matches[0].id;continue;}}
+      const cid=p._customerId||(p._customerId=uuid());s.customers.push({id:cid,_dbId:cid,name:p.customer,billing:clone(p.customerData?.billing||{}),delivery:clone(p.customerData?.delivery||{}),sameAsBilling:p.customerData?.sameAsBilling!==false,roles:['Kund'],contacts:[],active:true});
+    }
+    for(const c of s.customers){c._dbId||=c.id;const meta=details(c,['id','name','billing','delivery','sameAsBilling']);put('customers',c,{name:c.name,billing:{...c.billing,_registry:meta},delivery:c.delivery||{},same_as_billing:c.sameAsBilling!==false});}
     for(const p of s.projects) {
-      let customer=null;
-      if(p.customer?.trim()) {const c={_dbId:p._customerId||(p._customerId=uuid())};customer=put('customers',c,{name:p.customer,billing:p.customerData?.billing||{},delivery:p.customerData?.delivery||{},same_as_billing:p.customerData?.sameAsBilling!==false});}
+      const customer=p._customerId||null;
       const pid=put('projects',p,{name:p.name,source_lead_id:p.sourceLeadId?find(s.leads,p.sourceLeadId):null,customer_id:customer,company_id:companyId,currency:p.currency||'EUR',business_status:p.businessStatus||'Aktivt',phase:p.phase||'Kalkyl',probability:number(p.probability),target_margin:Number(p.calculation?.targetMargin??45),lost_at:p.lostAt||null,loss_reason:p.lossReason||null,loss_comment:p.lossComment||null,before_loss:p.beforeLoss||null,customer_data:p.customerData||{},calculation:p.calculation||{},details:details(p,['phases','history'])});
       for(const h of p.history||[])put('project_history',h,{project_id:pid,event_type:h.status||h.type||'Ändring',details:details(h)});
     }
@@ -99,7 +105,7 @@
     let baseline=encode(state), revisions=new Map();
     for(const t of tables)for(const r of initial['cdp_'+t])revisions.set('cdp_'+t+':'+r.id,r.revision);
     let pending=null, busy=false, failure=null, retryBatch=null, notify=()=>{};
-    function diff(next){const changes=[];for(const t of tables){const table='cdp_'+t,old=new Map(baseline[table].map(r=>[r.id,r]));for(const r of next[table]){const before=old.get(r.id);if(!before||canonical(before)!==canonical(r))changes.push({table,row:r,revision:revisions.get(table+':'+r.id)??null});old.delete(r.id);}for(const r of old.values())changes.push({table,row:{id:r.id,archived_at:new Date().toISOString()},revision:revisions.get(table+':'+r.id)});}return changes;}
+    function diff(next){const changes=[];for(const t of tables){const table='cdp_'+t,old=new Map(baseline[table].map(r=>[r.id,r]));for(const r of next[table]){const before=old.get(r.id);if(!before||canonical(before)!==canonical(r))changes.push({table,row:r,revision:revisions.get(table+':'+r.id)??null});old.delete(r.id);}for(const r of old.values())if(t!=='customers')changes.push({table,row:{id:r.id,archived_at:new Date().toISOString()},revision:revisions.get(table+':'+r.id)});}return changes;}
     async function flush(){
       try{
         // Two passes stabilize IDs assigned to nested records before serializing parent details.
