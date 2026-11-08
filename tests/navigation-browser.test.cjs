@@ -6,7 +6,7 @@ const output=require('node:path').join(__dirname,'../test-results');fs.mkdirSync
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));page.on('dialog',d=>d.accept());
  const state=async()=>{await page.locator('#cloud-save').waitFor({state:'hidden'});return page.evaluate(()=>JSON.parse(JSON.stringify(window.CDPRemote.adapter.state)));};
  const fill=async(form,values)=>{await state();for(const [k,v]of Object.entries(values))await page.locator(`${form} [name="${k}"]`).fill(String(v));};
- const submit=async form=>{await page.locator(form+' button').filter({hasText:/^(Spara tillverkare|Spara lead|Spara artikel|Spara fas|Spara BOM|Skapa RFQ-underlag|Spara svar|Spara sample|Spara \/ uppdatera PO-referens)$/}).click();await page.waitForFunction(()=>!window.CDPRemote.adapter.busy||window.CDPRemote.adapter.failure);};
+ const submit=async form=>{await page.locator(form+' button').filter({hasText:/^(Save manufacturer|Save lead|Save article|Save phase|Save BOM|Create RFQ specification|Save response|Save sample|Save \/ update PO reference)$/}).click();await page.waitForFunction(()=>!window.CDPRemote.adapter.busy||window.CDPRemote.adapter.failure);};
  const tab=async key=>page.locator(`[data-project-tab="${key}"]`).first().click();
 
  const db=require('./fake-server.cjs')();let signedIn=false;
@@ -18,7 +18,7 @@ const output=require('node:path').join(__dirname,'../test-results');fs.mkdirSync
  await page.goto((process.env.TEST_URL||'http://127.0.0.1:5188'));await page.locator('#login-form').waitFor({state:'visible'});assert.equal(await page.locator('.app-shell').isVisible(),false);await page.locator('#login-form [name="email"]').fill('qa@example.test');await page.locator('#login-form [name="password"]').fill('test-only');await page.locator('#login-form button').click();await page.waitForFunction(()=>window.CDPApp?.ready);console.log('PASS login gates cloud state and app scripts');
  const dbState=await page.evaluate(async()=>{
    const s=window.CDPRemote.adapter.state,S=window.CDPStructure,G=window.CDPProjectRfq,p=S.createProject(s,{name:'Navigation test',currency:'EUR'});
-   s.manufacturers.push({id:'nav-maker',name:'Navigation Maker',active:true});const a={id:'nav-article',projectId:p.id,name:'Navigation Rug',shape:'Rektangulär',widthCm:100,lengthCm:200,quantity:2,bom:[]};s.articles.push(a);p.phases=[{id:'nav-phase',name:'Fas 1',items:[{articleId:a.id,quantity:2}],productionStart:'2027-01-01',deliveryDate:'2027-02-01',calculation:S.defaults()}];G.configure(s,p,[a.id],['nav-maker'],[]);G.publish(s,p,'nav-maker');await window.CDPRemote.adapter.save();return {pid:p.id};
+   s.manufacturers.push({id:'nav-maker',name:'Navigation Maker',active:true});const a={id:'nav-article',projectId:p.id,name:'Navigation Rug',shape:'Rektangulär',widthCm:100,lengthCm:200,quantity:2,bom:[]};s.articles.push(a);p.phases=[{id:'nav-phase',name:"Phase 1",items:[{articleId:a.id,quantity:2}],productionStart:'2027-01-01',deliveryDate:'2027-02-01',calculation:S.defaults()}];G.configure(s,p,[a.id],['nav-maker'],[]);G.publish(s,p,'nav-maker');await window.CDPRemote.adapter.save();return {pid:p.id};
  });
  await page.reload();await page.waitForFunction(()=>window.CDPApp?.ready);
  const project=async()=>{await page.locator('[data-view=projects]').click();await page.locator('[data-project-id="'+dbState.pid+'"]').first().click();};

@@ -8,7 +8,7 @@ const S=ctx.window.CDPStructure,G=ctx.window.CDPProjectRfq,R=ctx.window.CDPRemot
  const keep=S.createProject(s,{name:'Keep',customer:'Shared'}),p=S.createProject(s,{name:'Delete',customer:'Shared'});p._customerId=keep._customerId='00000000-0000-4000-8000-000000000010';p.businessStatus='Vunnet';p.history=[{type:'Imported'}];
  s.manufacturers.push({id:'m',name:'Maker'});s.leads.push({id:'lead',name:'Lead',status:'Go',projectId:p.id});s.inquiries.push({id:'inq',projectId:p.id,status:'Go'});
  for(const [id,projectId]of [['a',p.id],['b',keep.id]])s.articles.push({id,projectId,name:id,shape:'Rektangulär',widthCm:100,lengthCm:200,bom:[{name:'Wool',quantity:1}],quantity:1});
- p.phases=[{id:'ph',name:'Fas 1',items:[{articleId:'a',quantity:1}],calculation:S.defaults()}];
+ p.phases=[{id:'ph',name:"Phase 1",items:[{articleId:'a',quantity:1}],calculation:S.defaults()}];
  G.configure(s,p,['a'],['m']);p.modelSampleOrders=[{id:'ms',manufacturerId:'m',sentAt:'2026-01-01'}];
  const r=S.createRfq(s,p,s.articles[0],'m',{required:true});S.recordAnswer(s,r,{decision:'accepted',price:10,fxRate:1,currency:'EUR',priceUnit:'per m²',status:'Godkänt'});S.selectResponse(s,r);S.saveSample(s,r,{required:true});
  s.quotations.push({id:'q',projectId:p.id,status:'Accepterad',version:1,amount:100,currency:'EUR',articleSnapshots:[],phaseSnapshots:[],costSnapshot:{totalCost:20}});

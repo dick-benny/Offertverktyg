@@ -6,7 +6,7 @@ const output=require('node:path').join(__dirname,'../test-results');fs.mkdirSync
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));page.on('dialog',d=>d.accept());
  const state=async()=>{await page.locator('#cloud-save').waitFor({state:'hidden'});return page.evaluate(()=>JSON.parse(JSON.stringify(window.CDPRemote.adapter.state)));};
  const fill=async(form,values)=>{await state();for(const [k,v]of Object.entries(values))await page.locator(`${form} [name="${k}"]`).fill(String(v));};
- const submit=async form=>{await page.locator(form+' button').filter({hasText:/^(Spara tillverkare|Spara lead|Spara artikel|Spara fas|Spara BOM|Skapa RFQ-underlag|Spara svar|Spara sample|Spara \/ uppdatera PO-referens)$/}).click();await page.waitForFunction(()=>!window.CDPRemote.adapter.busy||window.CDPRemote.adapter.failure);};
+ const submit=async form=>{await page.locator(form+' button').filter({hasText:/^(Save manufacturer|Save lead|Save article|Save phase|Save BOM|Create RFQ specification|Save response|Save sample|Save \/ update PO reference)$/}).click();await page.waitForFunction(()=>!window.CDPRemote.adapter.busy||window.CDPRemote.adapter.failure);};
  const expand=async locator=>{if(await locator.getAttribute('aria-expanded')!=='true')await locator.click();};
  const tab=async key=>page.locator(`[data-project-tab="${key}"]`).first().click();
 

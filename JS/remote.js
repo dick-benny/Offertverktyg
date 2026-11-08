@@ -52,11 +52,11 @@
   function encode(s) {
     const rows=Object.fromEntries(tables.map(t=>['cdp_'+t,[]]));
     const put=(t,o,v)=>{const r={id:id(o),...v,archived_at:null};rows['cdp_'+t].push(r);return r.id;};
-    const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error('En koppling saknas. Ladda om appen.');return id(o);};
+    const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error("A linked record is missing. Reload the application.");return id(o);};
     const details=(o,keys=[])=>clone(without(o,['_dbId',...keys]));
     let companyId=null;
     if(s.company.name?.trim()||s.company._dbId||s.articleTemplates?.length||s.inquiries?.length)companyId=put('companies',s.company,{name:s.company.name||'',details:{...details(s.company),_projectsApp:{schemaVersion:7,articleTemplates:clone(s.articleTemplates||[]),inquiries:clone(s.inquiries||[])}}});
-    else if(Object.entries(s.company).some(([k,v])=>k!=='_dbId'&&v))throw Error('Ange företagsnamn innan du sparar företagsuppgifter.');
+    else if(Object.entries(s.company).some(([k,v])=>k!=='_dbId'&&v))throw Error("Enter a company name before saving company details.");
     for(const m of s.manufacturers)put('manufacturers',m,{name:m.name,country:m.country||'',contact:m.contact||'',email:m.email||'',phone:m.phone||'',currency:m.currency||'EUR',active:m.active!==false,details:details(m)});
     for(const a of s.agents)put('agents',a,{name:a.name,active:a.active!==false,details:details(a)});
     for(const m of s.meetings)put('meetings',m,{title:m.visitor,meeting_at:iso(m.time),details:details(m)});
@@ -70,7 +70,7 @@
     for(const p of s.projects) {
       const customer=p._customerId||null;
       const pid=put('projects',p,{name:p.name,source_lead_id:p.sourceLeadId?find(s.leads,p.sourceLeadId):null,customer_id:customer,company_id:companyId,currency:p.currency||'EUR',business_status:p.businessStatus||'Aktivt',phase:p.phase||'Kalkyl',probability:number(p.probability),target_margin:Number(p.calculation?.targetMargin??45),lost_at:p.lostAt||null,loss_reason:p.lossReason||null,loss_comment:p.lossComment||null,before_loss:p.beforeLoss||null,customer_data:p.customerData||{},calculation:p.calculation||{},details:details(p,['phases','history'])});
-      for(const h of p.history||[])put('project_history',h,{project_id:pid,event_type:h.status||h.type||'Ändring',details:details(h)});
+      for(const h of p.history||[])put('project_history',h,{project_id:pid,event_type:h.status||h.type||"Change",details:details(h)});
     }
     for(const a of s.articles) {
       const aid=put('articles',a,{project_id:find(s.projects,a.projectId),code:a.code||'',name:a.name,specification:a.specification||'',shape:a.shape||'',width_cm:number(a.widthCm),length_cm:number(a.lengthCm),manual_area:number(a.manualArea),additional_cost:number(a.additionalCost),details:details(a,['bom','selectedPrice'])});
@@ -84,7 +84,7 @@
       if(r.price!=null||r._responseId||s.articles.some(a=>a.selectedRfqId===r.id&&a.selectedPrice)){const o={_dbId:r._responseId||(r._responseId=uuid())};const lastPrice=r.price??[...(r.history||[])].reverse().find(h=>h.price!=null)?.price??0;
         put('rfq_responses',o,{rfq_id:rid,article_id:aid,project_id:pid,price:number(lastPrice),price_unit:r.priceUnit||'per m²',currency:r.currency||'EUR',fx_rate:r.fxRate?Number(r.fxRate):null,moq:number(r.moq),lead_time_days:number(r.leadTime),comment:r.comment||'',price_status:r.status==='Avböjd'?'Förfrågan':r.status,received_at:iso(r.receivedAt)||iso(r.createdAt),details:{history:r.history||[]}});}
     }
-    for(const a of s.articles)if(a.selectedRfqId&&a.selectedPrice){const r=s.rfqs.find(r=>r.id===a.selectedRfqId);if(!r?._responseId)throw Error('Det valda RFQ-svaret saknas.');put('article_prices',{_dbId:a._selectionId||(a._selectionId=uuid())},{article_id:id(a),project_id:find(s.projects,a.projectId),response_id:r._responseId,selected_price_snapshot:a.selectedPrice});}
+    for(const a of s.articles)if(a.selectedRfqId&&a.selectedPrice){const r=s.rfqs.find(r=>r.id===a.selectedRfqId);if(!r?._responseId)throw Error("The selected RFQ response is missing.");put('article_prices',{_dbId:a._selectionId||(a._selectionId=uuid())},{article_id:id(a),project_id:find(s.projects,a.projectId),response_id:r._responseId,selected_price_snapshot:a.selectedPrice});}
     for(const p of s.projects) (p.phases||[]).forEach((ph,n)=>{
       const c={...window.CDPStructure.defaults(),...ph.calculation};
       ph._itemIds=ph._itemIds||{};
@@ -98,7 +98,7 @@
   }
 
   function createAdapter(client,initial) {
-    if(!initial||tables.some(t=>!Array.isArray(initial['cdp_'+t])))throw Error('Databassvaret är ofullständigt.');
+    if(!initial||tables.some(t=>!Array.isArray(initial['cdp_'+t])))throw Error("The database response is incomplete.");
     const state=window.CDPStructure.migrate(decode(initial));
     // First normalization establishes a baseline only; it never writes to the database.
     encode(state);
@@ -111,33 +111,34 @@
         // Two passes stabilize IDs assigned to nested records before serializing parent details.
         if(!retryBatch){encode(state);const next=encode(state);retryBatch={next,changes:diff(next)};}
         const {next,changes}=retryBatch;
-        if(changes.length){const result=await rpc(client,'cdp_apply_changes',{changes});if(result.error)throw result.error;if(!Array.isArray(result.data)||result.data.length!==changes.length)throw Error('Sparandet kunde inte bekräftas.');for(const r of result.data)revisions.set(r.table+':'+r.id,r.revision);}
+        if(changes.length){const result=await rpc(client,'cdp_apply_changes',{changes});if(result.error)throw result.error;if(!Array.isArray(result.data)||result.data.length!==changes.length)throw Error("The save could not be confirmed.");for(const r of result.data)revisions.set(r.table+':'+r.id,r.revision);}
         baseline=next;retryBatch=null;failure=null;busy=false;pending=null;notify({busy:false});return true;
       }catch(e){failure=e;busy=true;pending=null;notify({busy:true,error:e});return false;}
     }
     function previewImport(source){
-      if(tables.some(t=>initial['cdp_'+t].some(r=>!r.archived_at))||tables.some(t=>baseline['cdp_'+t].length))throw Error('Databasen innehåller redan uppgifter. Importen har stoppats så att inget skrivs över.');
-      if(!source||!Array.isArray(source.projects)||!Array.isArray(source.articles)||!Array.isArray(source.quotations))throw Error('Filen saknar projekt, artiklar eller offerter.');
-      if(Number(source.schemaVersion||0)>7)throw Error('Backupen kommer från en nyare appversion.');
+      if(tables.some(t=>initial['cdp_'+t].some(r=>!r.archived_at))||tables.some(t=>baseline['cdp_'+t].length))throw Error("The database already contains data. Import has been stopped to prevent overwriting it.");
+      if(!source||!Array.isArray(source.projects)||!Array.isArray(source.articles)||!Array.isArray(source.quotations))throw Error("The file has no projects, articles or quotations.");
+      if(Number(source.schemaVersion||0)>7)throw Error("The backup was created with a newer application version.");
       return {projects:source.projects.length,articles:source.articles.length,quotations:source.quotations.length};
     }
-    return {state, get busy(){return busy;},get failure(){return failure;},onStatus(fn){notify=fn;},save(){if(failure)throw Error('Föregående ändring är inte sparad.');if(!pending){busy=true;notify({busy:true});pending=Promise.resolve().then(flush);}return pending;},retry(){failure=null;return this.save();},exportUnsaved(){return clone(state);},diff,previewImport,importLocal(source){previewImport(source);const prepared=JSON.parse(JSON.stringify(source,(key,value)=>['_dbId','_responseId','_selectionId','_customerId','_itemIds','_deliveryId','_orderId','_sort'].includes(key)?undefined:value));prepared.workspaceId=state.workspaceId;window.CDPStructure.migrate(prepared);encode(prepared);Object.assign(state,prepared);return this.save();},get baseline(){return baseline;}};
+    return {state, get busy(){return busy;},get failure(){return failure;},onStatus(fn){notify=fn;},save(){if(failure)throw Error("The previous change has not been saved.");if(!pending){busy=true;notify({busy:true});pending=Promise.resolve().then(flush);}return pending;},retry(){failure=null;return this.save();},exportUnsaved(){return clone(state);},diff,previewImport,importLocal(source){previewImport(source);const prepared=JSON.parse(JSON.stringify(source,(key,value)=>['_dbId','_responseId','_selectionId','_customerId','_itemIds','_deliveryId','_orderId','_sort'].includes(key)?undefined:value));prepared.workspaceId=state.workspaceId;window.CDPStructure.migrate(prepared);encode(prepared);Object.assign(state,prepared);return this.save();},get baseline(){return baseline;}};
   }
 
   function bindStatus(adapter){
     const panel=document.createElement('div');panel.id='cloud-save';panel.hidden=true;
-    panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Sparstatus');
-    panel.innerHTML='<div class="cloud-card"><h2 id="cloud-title">Sparar…</h2><p id="cloud-message">Ändringen sparas i Supabase.</p><div id="cloud-actions" hidden><button type="button" data-cloud-retry>Försök spara igen</button><button type="button" data-cloud-export>Hämta osparade uppgifter</button><button type="button" data-cloud-reload>Läs om från databasen</button></div></div>';
+    panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',"Save status");
+    panel.innerHTML="<div class=\"cloud-card\"><h2 id=\"cloud-title\">Saving…</h2><p id=\"cloud-message\">The change is saved in Supabase.</p><div id=\"cloud-actions\" hidden><button type=\"button\" data-cloud-retry>Retry saving</button><button type=\"button\" data-cloud-export>Download unsaved changes</button><button type=\"button\" data-cloud-reload>Reload from database</button></div></div>";
     document.body.appendChild(panel);
     const setBlocked=b=>{for(const el of document.querySelectorAll('.app-shell,#modalBackdrop,#v6PreviewOverlay'))el.inert=b;};
-    adapter.onStatus(({busy,error})=>{panel.hidden=!busy;setBlocked(busy);if(busy){document.querySelector('#toast')?.classList.remove('show');panel.querySelector('#cloud-title').textContent=error?'Ändringen är inte bekräftad':'Sparar…';panel.querySelector('#cloud-message').textContent=error?((error.code==='40001'||error.code==='23505')?'Uppgifterna har ändrats av någon annan. Hämta gärna dina osparade uppgifter och läs sedan om från databasen.':'Kunde inte bekräfta sparandet. Kontrollera anslutningen och försök igen. ')+(error.message||''):'Ändringen sparas i Supabase.';panel.querySelector('#cloud-actions').hidden=!error;if(error)panel.querySelector('[data-cloud-export]').focus();}else{const el=document.querySelector('#toast');if(el){el.textContent='Sparat i Supabase';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400);}}});
+    adapter.onStatus(({busy,error})=>{panel.hidden=!busy;setBlocked(busy);if(busy){document.querySelector('#toast')?.classList.remove('show');panel.querySelector('#cloud-title').textContent=error?"The change is not confirmed":"Saving…";panel.querySelector('#cloud-message').textContent=error?((error.code==='40001'||error.code==='23505')?"Someone else has changed the data. Download your unsaved changes, then reload from the database.":"Could not confirm the save. Check your connection and try again. ")+(error.message||''):"The change is saved in Supabase.";panel.querySelector('#cloud-actions').hidden=!error;if(error)panel.querySelector('[data-cloud-export]').focus();}else{const el=document.querySelector('#toast');if(el){el.textContent="Saved in Supabase";el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400);}}});
     panel.querySelector('[data-cloud-retry]').onclick=()=>adapter.retry();
     panel.querySelector('[data-cloud-export]').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(adapter.exportUnsaved(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='osparade-uppgifter.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-    panel.querySelector('[data-cloud-reload]').onclick=()=>{if(confirm('Läsa om databasen? Eventuella osparade ändringar i den här fliken försvinner.'))location.reload();};
+    panel.querySelector('[data-cloud-reload]').onclick=()=>{if(confirm("Reload from the database? Any unsaved changes in this tab will be lost."))location.reload();};
     // Capture at window before any existing application handlers, including dialogs opened while saving.
     for(const type of ['click','submit','change','input','keydown'])window.addEventListener(type,e=>{if(adapter.busy&&!panel.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();}},true);
     window.addEventListener('beforeunload',e=>{if(adapter.busy){e.preventDefault();e.returnValue='';}});
   }
   window.CDPRemote={tables,encode,decode,createAdapter,async start(client){const {data,error}=await rpc(client,'cdp_read_state');if(error)throw error;const adapter=createAdapter(client,data);this.adapter=adapter;bindStatus(adapter);return adapter;}};
 })();
+
 

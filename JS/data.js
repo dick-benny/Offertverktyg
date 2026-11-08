@@ -3,7 +3,7 @@
 const clone=x=>JSON.parse(JSON.stringify(x));
 function createRemoteStore(){
 const adapter=window.CDPRemote.adapter;
-if(!adapter)throw Error('Supabase-data har inte laddats.');
+if(!adapter)throw Error("Supabase data has not loaded.");
 const state=adapter.state;
 const save=()=>adapter.save();
 const nextId=()=>crypto.randomUUID();
@@ -44,7 +44,7 @@ const nextId=()=>crypto.randomUUID();
     function removeMeeting(id) {
       const index = state.meetings.findIndex(m => m.id === id);
       if (index < 0) return false;
-      if(state.leads.some(l=>l.meetingId===id))throw Error('Mötet är kopplat till ett Lead och måste behållas.');
+      if(state.leads.some(l=>l.meetingId===id))throw Error("The meeting is linked to a lead and must be retained.");
       state.meetings.splice(index, 1); save(); return true;
     }
 
@@ -75,7 +75,7 @@ const nextId=()=>crypto.randomUUID();
     function removeLead(id) {
       const index = state.leads.findIndex(item => item.id === id);
       if (index < 0) return false;
-      if(state.projects.some(p=>p.sourceLeadId===id))throw Error('Leadet är kopplat till ett projekt och måste behållas.');
+      if(state.projects.some(p=>p.sourceLeadId===id))throw Error("The lead is linked to a project and must be retained.");
       state.leads.splice(index, 1);
       save();
       return true;
@@ -157,7 +157,7 @@ const nextId=()=>crypto.randomUUID();
           probability: inquiry.probability,
           owner: values.owner || "DE",
           agent: inquiry.agent !== "—" ? inquiry.agent : "",
-          next: "Påbörja kalkyl",
+          next: "Start costing",
           createdAt: new Date().toISOString().slice(0, 10),
           customerData: {
             sameAsBilling: true,

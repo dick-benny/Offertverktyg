@@ -261,3 +261,25 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .bom-article-list li { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 #articleSampleForm textarea { width:100%; resize:vertical; }
 #articleSampleForm textarea[readonly] { background:#f5f5f1; }
+
+/* Keep short RFQ actions readable in the horizontally scrollable table. */
+.project-rfq-lines td:last-child button { white-space:nowrap; word-break:normal; overflow-wrap:normal; }
+
+.article-inline { width:100%; min-width:80px; max-width:140px; padding:8px; border:1px solid #d8ddd2; border-radius:5px; font:inherit; }
+.article-inline:focus { outline:2px solid #62715b; outline-offset:1px; }
+.article-inline-status { display:block; max-width:180px; font-size:11px; color:#56634d; }
+.article-fx { display:block; font-size:11px; margin-top:5px; }
+.article-fx input { width:75px; }
+
+.project-article-create { margin-left:auto; display:flex; gap:8px; }
+.project-rfq-lines input[type="checkbox"] { width:18px; min-width:18px; height:18px; }
+
+.account-settings { position:relative; flex-shrink:0; }
+.account-settings summary { cursor:pointer; list-style:none; white-space:nowrap; }
+.account-settings summary::-webkit-details-marker { display:none; }
+.account-settings-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:100; min-width:170px; padding:6px; background:#fff; border:1px solid #d8ddd2; border-radius:8px; box-shadow:0 6px 24px #0002; }
+.account-settings-menu button { display:block; width:100%; border:0; padding:12px; background:transparent; text-align:left; font:inherit; cursor:pointer; border-radius:5px; }
+.account-settings-menu button:hover,.account-settings-menu button:focus-visible { background:#edf1e9; }
+.user-admin-table { min-width:750px; }
+.user-admin-proposals { margin-top:24px; }
+.user-admin-proposals button:disabled { opacity:.5; cursor:not-allowed; }

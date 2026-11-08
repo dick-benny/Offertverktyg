@@ -5,7 +5,7 @@ const S=ctx.window.CDPStructure,R=ctx.window.CDPRemote,s=S.migrate({company:{},a
 const p=S.createProject(s,{name:'EUR project',currency:'SEK'});assert.equal(p.phases.length,0);
 s.manufacturers.push({id:'m',name:'Maker',active:true},{id:'m2',name:'Other',active:true});
 const a={id:'a',name:'Rug',projectId:p.id};s.articles.push(a);
-p.phases.push({id:'ph',name:'Fas 1',productionStart:'2027-01-01',deliveryDate:'2027-02-01',items:[{articleId:a.id,quantity:2}],calculation:S.defaults()});
+p.phases.push({id:'ph',name:"Phase 1",productionStart:'2027-01-01',deliveryDate:'2027-02-01',items:[{articleId:a.id,quantity:2}],calculation:S.defaults()});
 const r=S.createRfq(s,p,a,'m');assert.equal(r.currency,'EUR');assert.equal(r.decision,'pending');
 const answer={decision:'accepted',price:100,currency:'EUR',fxRate:11,priceUnit:'per styck',status:'Godkänt'};
 assert.throws(()=>S.recordAnswer(s,r,{...answer,currency:'USD'}),/EUR/);
