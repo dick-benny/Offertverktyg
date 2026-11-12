@@ -289,3 +289,34 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .user-initials-editor [data-initials-status] { flex-basis:100%; font-size:12px; max-width:210px; }
 [data-ddp-fields][hidden] { display: none !important; }
 [data-customer-freight] { display: block; padding: 10px 0; font-size: 16px; font-weight: 600; }
+
+[data-new-product-name][hidden] { display: none !important; }
+
+.freight-cost-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+[data-ddp-import][hidden] { display:none!important; }
+@media(max-width:640px) { .freight-cost-row { grid-template-columns:1fr; } }
+
+.freight-cost-row { grid-template-columns:repeat(6,minmax(0,1fr)); align-items:start; }
+.freight-cost-row .field > span { min-height:2.6em; }
+@media(max-width:1000px) { .freight-cost-row { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:640px) { .freight-cost-row { grid-template-columns:1fr; } .freight-cost-row .field > span { min-height:0; } }
+
+.costing-header-row { grid-template-columns:minmax(90px,0.7fr) minmax(110px,0.8fr) minmax(180px,1.4fr) minmax(180px,1.6fr); }
+@media(max-width:1000px) { .costing-header-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) { .costing-header-row { grid-template-columns:1fr; } }
+
+.simple-costing-overview { display:grid; grid-template-columns:190px minmax(0,1fr); gap:18px; align-items:start; margin-bottom:18px; }
+.simple-costing-overview h3 { margin:16px 0 0; }
+.simple-costing-overview .calc-summary { grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:0; }
+.simple-costing-overview .calc-summary strong { font-size:18px; overflow-wrap:anywhere; }
+@media(max-width:1000px) { .simple-costing-overview { grid-template-columns:1fr; } .simple-costing-overview h3 { margin:0; } }
+@media(max-width:640px) { .simple-costing-overview .calc-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.project-overview-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.project-action-menu { position:relative; }
+.project-action-menu > summary { list-style:none; font-size:22px; line-height:1; cursor:pointer; }
+.project-action-menu > summary::-webkit-details-marker { display:none; }
+.project-action-options { position:absolute; right:0; top:100%; min-width:160px; display:grid; padding:8px; z-index:20; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 6px 20px #0002; }
+.project-action-options button { text-align:left; padding:10px; }
+.project-overview-financials .calc-summary { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media(max-width:760px) { .project-overview-financials .calc-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }

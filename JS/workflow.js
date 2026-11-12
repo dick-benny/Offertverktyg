@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const S = window.CDPStructure, clone = S.clone;
-  const specificationKeys = ['shape','widthCm','lengthCm','manualArea','construction','material','quality','pileHeight','colours','finish','nof','specification','designReferences','cadUrl','cadName','cadLinks','labelLinks','bom'];
+  const specificationKeys = ['design','shape','widthCm','lengthCm','manualArea','construction','material','quality','pileHeight','colours','finish','nof','specification','designReferences','cadUrl','cadName','cadLinks','labelLinks','bom'];
   const baseMigrate = S.migrate;
   function migrate(state) {
     const version = Number(state.schemaVersion || 0);
@@ -22,10 +22,10 @@
     state.projects.forEach(p => { p.butlerOrders ||= []; });
     return state;
   }
-  function articleName(state, projectId, value, id) {
+  function articleName(state, projectId, value, id, dimensionName=false) {
     const name=String(value||'').trim();
     if(!name) throw Error("Enter an article name.");
-    if(state.articles.some(a=>a.projectId===projectId&&a.id!==id&&String(a.name||'').trim().toLocaleLowerCase('sv')===name.toLocaleLowerCase('sv'))) throw Error("This article name is already used in the project. Choose a unique name.");
+    if(!dimensionName&&state.articles.some(a=>a.projectId===projectId&&a.id!==id&&String(a.name||'').trim().toLocaleLowerCase('sv')===name.toLocaleLowerCase('sv'))) throw Error("This article name is already used in the project. Choose a unique name.");
     return name;
   }
   function specification(article) {
@@ -193,4 +193,62 @@
   p.qualitySamples=existing;
   const sample={id:old?.id||S.uid('quality'),name:S.qualitySampleName(state,{articleIds}),size,quantity:null,articleIds,instructions:String(v.instructions||''),price:0};if(old)Object.assign(old,sample);else p.qualitySamples.push(sample);return sample;
  };
+})();
+/* Project-scoped products. Articles retain resolved specifications for snapshots and exports. */
+(() => {
+ const S=window.CDPStructure,copy=S.clone;
+ const keys=['design','construction','material','quality','pileHeight','colours','finish','nof','specification','designReferences','cadUrl','cadName','cadLinks','labelLinks','bom'];
+ const clean=x=>JSON.stringify(x, (k,v)=>k.startsWith('_')?undefined:v);
+ const empty=k=>['bom','designReferences','cadLinks','labelLinks'].includes(k)?[]:'';
+ const value=(o,k)=>JSON.parse(clean(o[k]??empty(k)));
+ const spec=a=>Object.fromEntries(keys.map(k=>[k,value(a,k)]));
+ function sync(state){
+  for(const p of state.projects){
+   p.products ||= [];
+   for(const a of state.articles.filter(a=>a.projectId===p.id)){
+    if(!p.products.some(x=>x.id===a.productId)){
+     const id='product-'+a.id;let product=p.products.find(x=>x.id===id);
+     if(!product){product={id,name:a.name||a.code||'Product',...spec(a),migrated:true};p.products.push(product);}
+     a.productId=product.id;
+    }
+   }
+   for(const product of p.products){const articles=state.articles.filter(a=>a.projectId===p.id&&a.productId===product.id);product.articleIds=articles.map(a=>a.id).sort();product.articleDimensions=articles.map(a=>a.id+':'+articleName(null,a)).sort();}
+   for(const sample of p.qualitySamples||[])if(sample.productId){const product=p.products.find(x=>x.id===sample.productId);if(product){sample.articleIds=state.articles.filter(a=>a.projectId===p.id&&a.productId===product.id).map(a=>a.id);sample.name=product.name;}}
+  }
+ }
+ const migrate=S.migrate;S.migrate=function(state){migrate(state);sync(state);return state;};
+ function find(state,a){return state.projects.find(p=>p.id===a.projectId)?.products?.find(p=>p.id===a.productId);}
+ function save(state,p,id,v){
+  const name=String(v.name||'').trim();if(!name)throw Error('Enter a product name.');
+  if((p.products||[]).some(x=>x.id!==id&&x.name.trim().toLowerCase()===name.toLowerCase()))throw Error('This product name is already used in the project.');
+  const old=id?p.products?.find(x=>x.id===id):null;if(id&&!old)throw Error('The product is missing.');
+  const next={...(old||{}),id:old?.id||S.uid('product'),name,...spec({...old,...v})};
+  // Validate before changing any related articles. Local differences are preserved.
+  for(const a of state.articles.filter(a=>a.projectId===p.id&&a.productId===id)){
+   a.productOverrides ||= [];
+   for(const k of keys){if(clean(value(a,k))!==clean(value(old,k))&&!a.productOverrides.includes(k))a.productOverrides.push(k);if(!a.productOverrides.includes(k)&&clean(value(a,k))!==clean(value(next,k)))a[k]=value(next,k);}
+  }
+  if(old)Object.assign(old,next);else(p.products||=[]).push(next);sync(state);return old||next;
+ }
+ function assertUnique(state,a,productId=a.productId){
+  const name=articleName(null,a);if(!productId||!name)return;
+  if(state.articles.some(other=>other.id!==a.id&&other.projectId===a.projectId&&other.productId===productId&&articleName(null,other)===name))throw Error('This product already has an article with dimensions '+name+'. Edit the existing article instead.');
+ }
+ function link(state,a,productId,useProduct=false){
+  const p=state.projects.find(p=>p.id===a.projectId),product=p?.products?.find(x=>x.id===productId);if(!product)throw Error('Select a product from this project.');
+  assertUnique(state,a,productId);
+  a.productId=productId;a.productOverrides=[];
+  for(const k of keys){if(useProduct){if(clean(value(a,k))!==clean(value(product,k)))a[k]=value(product,k);}else if(clean(value(a,k))!==clean(value(product,k)))a.productOverrides.push(k);}
+  sync(state);return a;
+ }
+ function overrides(state,a){const p=find(state,a);if(!p)return; a.productOverrides=keys.filter(k=>clean(value(a,k))!==clean(value(p,k)));}
+ function articleName(product,a){const w=Number(a.widthCm),l=a.shape==='Rund'?w:Number(a.lengthCm);return Number.isFinite(w)&&Number.isFinite(l)&&w>0&&l>0?`${w}x${l}`:'';}
+ const sampleName=S.qualitySampleName;S.qualitySampleName=function(state,sample){if(sample.productId){const product=state.projects.flatMap(p=>p.products||[]).find(p=>p.id===sample.productId);if(product)return product.name;}return sampleName(state,sample);};
+ const saveSample=S.saveQualitySample;S.saveQualitySample=function(state,p,id,v){
+  if(!v.productId)return saveSample(state,p,id,v);
+  const product=p.products?.find(x=>x.id===v.productId);if(!product)throw Error('Select a product from this project.');
+  const articleIds=state.articles.filter(a=>a.projectId===p.id&&a.productId===product.id).map(a=>a.id);
+  const result=saveSample(state,p,id,{...v,articleIds});result.productId=product.id;result.name=product.name;return result;
+ };
+ S.products={keys,sync,find,save,link,overrides,articleName,spec,assertUnique};
 })();

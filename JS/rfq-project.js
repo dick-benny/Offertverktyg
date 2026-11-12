@@ -5,6 +5,7 @@
   const unique=a=>[...new Set(a)];
   const key=(articleId,phaseId)=>JSON.stringify([articleId,phaseId||'']);
   function content(state,p,ids,sampleIds,targets={},type="complete"){
+    S.products?.sync(state);
     S.syncSinglePhase(state,p);
     const lines=[];
     for(const id of ids){

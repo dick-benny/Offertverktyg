@@ -4,7 +4,7 @@
   const clone = x => JSON.parse(JSON.stringify(x));
   const uid = prefix => prefix + '-' + crypto.randomUUID();
   const today = () => new Date().toLocaleDateString('sv-SE');
-  const defaults = () => ({deliveryTerm:'DAP', freightCost:0, freightMarkupPercent:15, customerFreight:0, dutyCost:0, importVatCost:0, otherImportCost:0, otherDeliveryCost:0, includeImportVatInCost:false, freightPresentation:'Separat rad'});
+  const defaults = () => ({deliveryTerm:'DDP', freightCost:0, freightMarkupPercent:15, customerFreight:0, dutyCost:0, importVatCost:0, otherImportCost:0, otherDeliveryCost:0, includeImportVatInCost:true, freightPresentation:'Separat rad'});
   function migrate(s) {
     const first = Number(s.schemaVersion || 0) < 6;
     for (const k of ['leads','projects','articles','quotations','inquiries','manufacturers','meetings','rfqs']) if (!Array.isArray(s[k])) s[k]=[];
@@ -105,15 +105,15 @@
         const cost=(unit==='fast pris'?(base+(Number(a.additionalCost)||0))*qty/counts.get(a.id):((unit==='per m²'?area(a)*base:base)+(Number(a.additionalCost)||0))*qty)*(rate||0);
         return {...clone(a),articleId:a.id,quantity:qty,area:area(a),totalArea:area(a)*qty,manufacturer:r.manufacturer||a.manufacturer,pricePerSqm:base,priceUnit:unit,cost,unitCost:cost/qty,phaseId:ph.id};
       }).filter(Boolean);
-      if(c.freightPricing==='markup'){
+      if(['markup','markup-import'].includes(c.freightPricing)){
         if(!Number.isFinite(Number(c.freightMarkupPercent))||Number(c.freightMarkupPercent)<0)errors.push(ph.name+': freight markup must be zero or greater.');
-        c.customerFreight=cents(Number(c.freightCost)*(1+Number(c.freightMarkupPercent)/100));
+        c.customerFreight=cents(Number(c.freightCost)*(1+Number(c.freightMarkupPercent)/100)+(c.freightPricing==='markup-import'&&c.deliveryTerm==='DDP'?Number(c.otherImportCost)||0:0));
       }
       for(const k of ['freightCost','customerFreight','otherDeliveryCost',...(c.deliveryTerm==='DDP'?['dutyCost','importVatCost','otherImportCost']:[])])if(!Number.isFinite(Number(c[k]))||Number(c[k])<0)errors.push(ph.name+": invalid delivery cost.");
       const productionCost=items.reduce((n,a)=>n+a.cost,0),freightCost=Number(c.freightCost)||0;
       const dutyCost=c.deliveryTerm==='DDP'?Number(c.dutyCost)||0:0,importVatCost=c.deliveryTerm==='DDP'&&c.includeImportVatInCost?Number(c.importVatCost)||0:0,otherImportCost=c.deliveryTerm==='DDP'?Number(c.otherImportCost)||0:0;
       const totalCost=productionCost+freightCost+dutyCost+importVatCost+otherImportCost+(Number(c.otherDeliveryCost)||0);
-      const salesPrice=cents(c.freightPricing==='markup'?(totalCost-freightCost)/(1-margin/100)+c.customerFreight:totalCost/(1-margin/100));
+      const salesPrice=cents(['markup','markup-import'].includes(c.freightPricing)?(totalCost-freightCost-(c.freightPricing==='markup-import'?otherImportCost:0))/(1-margin/100)+c.customerFreight:totalCost/(1-margin/100));
       const freightShown=c.freightPresentation==='Separat rad'?Number(c.customerFreight)||0:0;
       if(freightShown>salesPrice)errors.push(ph.name+": freight charged exceeds the phase quotation price.");
       if(!items.length&&salesPrice>freightShown)errors.push(ph.name+": add articles to allocate the quotation price.");
@@ -122,7 +122,7 @@
     });
     const sum=k=>phases.reduce((n,p)=>n+p[k],0);
     // Reconcile the final cent against the project formula, not a sum of rounded phases.
-    const correction=cents(cents(phases.reduce((n,ph)=>n+(ph.calculation.freightPricing==='markup'?(ph.totalCost-ph.freightCost)/(1-margin/100)+ph.calculation.customerFreight:ph.totalCost/(1-margin/100)),0))-sum('salesPrice'));
+    const correction=cents(cents(phases.reduce((n,ph)=>n+(['markup','markup-import'].includes(ph.calculation.freightPricing)?(ph.totalCost-ph.freightCost-(ph.calculation.freightPricing==='markup-import'?ph.otherImportCost:0))/(1-margin/100)+ph.calculation.customerFreight:ph.totalCost/(1-margin/100)),0))-sum('salesPrice'));
     const last=phases.filter(ph=>ph.items.length).at(-1);
     if(last && correction){last.salesPrice=cents(last.salesPrice+correction);const item=last.items.at(-1);item.salesTotal=cents(item.salesTotal+correction);item.salesUnit=item.salesTotal/item.quantity;}
     return {phases,productionCost:sum('productionCost'),freightCost:sum('freightCost'),dutyCost:sum('dutyCost'),importVatCost:sum('importVatCost'),otherImportCost:sum('otherImportCost'),totalCost:sum('totalCost'),salesPrice:cents(sum('salesPrice')),grossProfit:sum('salesPrice')-sum('totalCost'),margin,errors:[...new Set(errors)],warnings:[...new Set(warnings)]};

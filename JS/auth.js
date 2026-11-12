@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.28";
+  const ASSET_VERSION = "7.9.43";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -91,7 +91,7 @@
   }
   function findUserLabel(value){const key=String(value||'').toLocaleLowerCase('en');if(!key)return null;const exact=userLabels.filter(u=>[u.id,u.email,u.name].some(v=>v&&String(v).toLocaleLowerCase('en')===key));if(exact.length===1)return exact[0];const initials=userLabels.filter(u=>[u.initials,suggestedInitials(u.name,u.email)].some(v=>v.toLocaleLowerCase('en')===key));return initials.length===1?initials[0]:null;}
   function updateUserLabels(rows){for(const row of rows){const u={id:row.user_id||row.id||'',email:String(row.email||''),name:String(row.name||''),initials:String(row.initials||suggestedInitials(row.name,row.email))};const index=userLabels.findIndex(old=>u.id&&old.id===u.id||u.email&&old.email.toLowerCase()===u.email.toLowerCase());if(index<0)userLabels.push(u);else userLabels[index]=u;const projectUser=(window.CDPProjectUsers||[]).find(p=>p.id===u.id||p.email===u.email);if(projectUser){projectUser.initials=u.initials;if(u.name)projectUser.name=u.name;}}const own=userLabels.find(u=>u.id===signedInUserId);if(own){const avatar=document.querySelector('#profileAvatar');if(avatar){avatar.textContent=own.initials;avatar.title=own.name||own.email;}}}
-  window.CDPUserLabels={suggest:suggestedInitials,find:findUserLabel,update:updateUserLabels,initials:value=>findUserLabel(value)?.initials||value,title:value=>{const u=findUserLabel(value);return u?[u.name,u.email].filter(Boolean).join(' · '):value;}};
+  window.CDPUserLabels={suggest:suggestedInitials,find:findUserLabel,update:updateUserLabels,initials:value=>findUserLabel(value)?.initials||(String(value||'').includes('@')?suggestedInitials('',value):String(value||'').length<=6?value:suggestedInitials(value,'')),title:value=>{const u=findUserLabel(value);return u?[u.name,u.email].filter(Boolean).join(' · '):value;}};
   function applySession(session) {
     const email = session?.user?.email || "";
     signedInUserId=session?.user?.id||'';
@@ -156,7 +156,7 @@
         await loadScript(`JS/rfq-project.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/remote.js?v=${ASSET_VERSION}`);
         await window.CDPRemote.start(client);
-        await window.CDPLoadProjectUsers();
+        await window.CDPLoadProjectUsers({all:true});
         await loadScript(`JS/data.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/xlsx.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/app.js?v=${ASSET_VERSION}`);

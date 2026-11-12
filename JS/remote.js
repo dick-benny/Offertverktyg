@@ -50,6 +50,8 @@
   }
 
   function encode(s) {
+    window.CDPStructure.products?.sync(s);
+    if(window.CDPStructure.products)for(const a of s.articles)window.CDPStructure.products.assertUnique(s,a);
     s.projects.forEach(p=>window.CDPStructure.syncSinglePhase(s,p));
     const rows=Object.fromEntries(tables.map(t=>['cdp_'+t,[]]));
     const put=(t,o,v)=>{const r={id:id(o),...v,archived_at:null};rows['cdp_'+t].push(r);return r.id;};
@@ -105,6 +107,12 @@
     encode(state);
     let baseline=encode(state), revisions=new Map();
     for(const t of tables)for(const r of initial['cdp_'+t])revisions.set('cdp_'+t+':'+r.id,r.revision);
+    // Persist additive product migration on the next explicit save, never during hydration.
+    for(const t of ['projects','articles'])for(const row of baseline['cdp_'+t]){
+      const old=initial['cdp_'+t].find(r=>r.id===row.id);
+      if(old&&t==='projects'&&!Object.hasOwn(old.details||{},'products'))delete row.details.products;
+      if(old&&t==='articles'&&!Object.hasOwn(old.details||{},'productId'))delete row.details.productId;
+    }
     let pending=null, busy=false, failure=null, retryBatch=null, notify=()=>{};
     function diff(next){const changes=[];for(const t of tables){const table='cdp_'+t,old=new Map(baseline[table].map(r=>[r.id,r]));for(const r of next[table]){const before=old.get(r.id);if(!before||canonical(before)!==canonical(r))changes.push({table,row:r,revision:revisions.get(table+':'+r.id)??null});old.delete(r.id);}for(const r of old.values())if(t!=='customers')changes.push({table,row:{id:r.id,archived_at:new Date().toISOString()},revision:revisions.get(table+':'+r.id)});}return changes;}
     async function flush(){
