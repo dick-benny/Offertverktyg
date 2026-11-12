@@ -8,7 +8,7 @@ const S=ctx.window.CDPStructure,G=ctx.window.CDPProjectRfq,R=ctx.window.CDPRemot
  S.setTargetPrice(s,'a',45);assert.throws(()=>S.setTargetPrice(s,'a',-1));
  const sample=S.saveQualitySample(s,p,'',{name:'Wool quality',size:'30 × 30 cm',quantity:2,articleIds:['a','b'],instructions:'Ivory wool'});
  assert.equal(p.qualitySamples.length,1);assert.equal(sample.price,0);assert.equal(s.articles.length,2);assert.throws(()=>S.saveQualitySample(s,p,'',{name:'Bad',size:'30',quantity:0,articleIds:[]}));
- assert.throws(()=>G.configure(s,p,['a','b'],['m'],[],undefined,'preliminary'));
+ assert.equal(G.configure(s,p,['a','b'],['m'],[],undefined,'preliminary').lines.filter(l=>l.sample).length,0);delete p.projectRfq;
  let g=G.configure(s,p,['a','b'],['m'],[sample.id],undefined,'preliminary');assert.equal(g.lines.length,3);assert.equal(g.lines[0].targetPrice,45);assert.equal(g.lines[2].quantity,null);assert.equal(sample.name,'a / b');assert.equal(sample.quantity,null);assert.equal(g.lines[2].area,0);assert.equal(g.lines[2].sampleDetails.size,'30 × 30 cm');
  s.articles[0].quantity=0;assert.throws(()=>G.publish(s,p,'m'));s.articles[0].quantity=3;G.sync(s,p);const initialRevision=g.revision;
  G.publish(s,p,'m');assert.equal(G.supplierView(s,'other').length,0);S.setTargetPrice(s,'a',70);G.sync(s,p);assert.equal(g.lines[0].targetPrice,45);assert.equal(g.revision,initialRevision);

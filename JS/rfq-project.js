@@ -5,6 +5,7 @@
   const unique=a=>[...new Set(a)];
   const key=(articleId,phaseId)=>JSON.stringify([articleId,phaseId||'']);
   function content(state,p,ids,sampleIds,targets={},type="complete"){
+    S.syncSinglePhase(state,p);
     const lines=[];
     for(const id of ids){
       const a=state.articles.find(a=>a.id===id&&a.projectId===p.id);if(!a)continue;
@@ -15,24 +16,25 @@
       for(const ph of phases.length?phases:[{phaseId:'',phase:type==='preliminary'?"Preliminary":"No phase assigned",quantity:Number(a.quantity??1),productionStart:'',deliveryDate:''}])lines.push({key:key(id,ph.phaseId),articleId:id,article:copy(spec),...ph,sample:false,...(targets[id]!=null?{targetPrice:targets[id]}:{}),area:S.area(a)});
       if(!p.qualitySamples&&sampleIds.includes(id))lines.push({key:'sample:'+id,articleId:id,article:copy(spec),sampleDetails:S.articleSample(state,a),phaseId:'',phase:'',quantity:1,productionStart:'',deliveryDate:'ASAP',sample:true,area:0});
     }
-    for(const sample of p.qualitySamples||[]){if(!sampleIds.includes(sample.id)||!sample.articleIds.some(id=>ids.includes(id)))continue;
+    for(const sample of p.qualitySamples||[]){if(!sampleIds.includes(sample.id)||(type!=='preliminary'&&!sample.articleIds.some(id=>ids.includes(id))))continue;
       lines.push({key:'quality:'+sample.id,articleId:sample.id,article:{id:sample.id,name:S.qualitySampleName(state,sample)},sampleDetails:{...copy(sample),type:"Quality sample",deliveryAddress:S.sampleAddress(state)},phaseId:'',phase:'',quantity:null,productionStart:'',deliveryDate:'ASAP',sample:true,area:0});
     }
     return lines;
   }
-  function validateConfig(state,p,ids,mids,samples){
+  function validateConfig(state,p,ids,mids,samples,type='complete'){
     if(!ids.length||!mids.length)throw Error("Select at least one article and one manufacturer.");
     if(ids.some(id=>!state.articles.some(a=>a.id===id&&a.projectId===p.id)))throw Error("The article does not belong to this project.");
     if(mids.some(id=>!state.manufacturers.some(m=>m.id===id&&m.active!==false)))throw Error("Select active manufacturers.");
-    if(p.qualitySamples&&ids.some(id=>!p.qualitySamples.some(s=>samples.includes(s.id)&&s.articleIds.includes(id))))throw Error("Select quality samples covering all selected articles. A sample can be linked to multiple articles.");
-    if(samples.some(id=>p.qualitySamples?!p.qualitySamples.some(s=>s.id===id&&s.articleIds.some(a=>ids.includes(a))):!ids.includes(id)))throw Error("The sample must belong to a selected article.");
+    if(type!=='preliminary'&&p.qualitySamples&&ids.some(id=>!p.qualitySamples.some(s=>samples.includes(s.id)&&s.articleIds.includes(id))))throw Error("Select quality samples covering all selected articles. A sample can be linked to multiple articles.");
+    if(samples.some(id=>p.qualitySamples?!p.qualitySamples.some(s=>s.id===id&&(type==='preliminary'||s.articleIds.some(a=>ids.includes(a)))):!ids.includes(id)))throw Error("The sample must belong to a selected article.");
   }
   function recipient(g,mid){const r=g.recipients.find(r=>r.manufacturerId===mid);if(!r)throw Error("The manufacturer is not selected for this RFQ.");return r;}
   function configure(state,p,ids,mids,samples=[],targets,type){
+    if(p.projectType==='simple')throw Error("Switch this project to Complete to use RFQs.");
     const requireDetails=Boolean(type);
     const qualitySamples=type&&!p.qualitySamples?copy(S.qualitySamples(state,p)):p.qualitySamples,configProject={...p,qualitySamples};
     type=type||p.projectRfq?.type||'complete';if(!['preliminary','complete'].includes(type))throw Error("Select an RFQ type.");if(p.projectRfq&&(p.projectRfq.type||'complete')==='complete'&&type==='preliminary')throw Error("A complete RFQ cannot revert to preliminary.");
-    ids=unique(ids);mids=unique(mids);samples=qualitySamples?unique(samples):ids.slice();validateConfig(state,configProject,ids,mids,samples);
+    ids=unique(ids);mids=unique(mids);samples=qualitySamples?unique(samples):ids.slice();validateConfig(state,configProject,ids,mids,samples,type);
     const nextTargets={};for(const id of ids){const value=targets===undefined?(p.projectRfq?p.projectRfq.targetPrices?.[id]:state.articles.find(a=>a.id===id)?.targetPrice):targets[id];if(value===''||value==null)continue;const n=Number(value);if(!Number.isFinite(n)||n<=0)throw Error("Target price must be greater than 0 EUR/m², or left blank.");nextTargets[id]=n;}
     if(qualitySamples)p.qualitySamples=qualitySamples;
     if(!p.projectRfq){
@@ -76,7 +78,8 @@
     if(g.lines.some(l=>!l.sample&&(!Number.isFinite(l.area)||l.area<=0||!Number.isSafeInteger(l.quantity)||l.quantity<1||!l.phaseId||!l.deliveryDate||!l.productionStart||l.productionStart>l.deliveryDate)))throw Error("Cappelen needs to check BOM dimensions, phase, quantity, production start and delivery date.");
   }
   function publish(state,p,mid){
-    if(!p.qualitySamples)p.projectRfq.sampleIds=p.projectRfq.articleIds.slice();sync(state,p);const g=p.projectRfq,r=recipient(g,mid);validateConfig(state,p,g.articleIds,[mid],g.sampleIds);validateLines(g);
+    if(p.projectType==='simple')throw Error("Switch this project to Complete to use RFQs.");
+    if(!p.qualitySamples)p.projectRfq.sampleIds=p.projectRfq.articleIds.slice();sync(state,p);const g=p.projectRfq,r=recipient(g,mid);validateConfig(state,p,g.articleIds,[mid],g.sampleIds,g.type);validateLines(g);
     if(!state.manufacturers.some(m=>m.id===mid&&m.active!==false))throw Error("The manufacturer is inactive.");
     if(r.publishedRevision===g.revision&&!r.withdrawn)return;
     r.sentAt=now();r.publishedRevision=g.revision;r.withdrawn=false;r.history.push({type:'published',revision:g.revision,at:r.sentAt});
@@ -149,6 +152,7 @@
  const statuses=['Beställd','Skickad','Levererad'],reviews=['Inväntar bedömning','Godkänd','Ändring krävs'];
  function get(p,id){const o=(p.modelSampleOrders||[]).find(o=>o.id===id);if(!o)throw Error("The order is missing.");return o;}
  function draft(state,p,mid,values,id){
+  if(p.projectType==='simple')throw Error("Switch this project to Complete to order full-size samples.");
   const old=id?get(p,id):null;if(old?.sentAt)throw Error("A sent order cannot be changed. Create a new order.");
   if(!p.projectRfq?.recipients.some(r=>r.manufacturerId===mid)||!state.manufacturers.some(m=>m.id===mid&&m.active!==false))throw Error("Select an active manufacturer from the project's RFQ.");
   if(!values.lines?.length)throw Error("Select at least one article.");

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.21";
+  const ASSET_VERSION = "7.9.28";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -83,15 +83,47 @@
     return "Good afternoon";
   }
 
+  const userLabels=[];
+  let signedInUserId='';
+  function suggestedInitials(name,email=''){
+    const label=String((name&&name!==email?name:String(email).split('@')[0])||'').replace(/[^\p{L}\p{N}]+/gu,' ').trim(),parts=label.split(/ +/);
+    return (parts.length>1?parts[0].slice(0,1)+parts.at(-1).slice(0,1):label.slice(0,2)).toUpperCase()||'U';
+  }
+  function findUserLabel(value){const key=String(value||'').toLocaleLowerCase('en');if(!key)return null;const exact=userLabels.filter(u=>[u.id,u.email,u.name].some(v=>v&&String(v).toLocaleLowerCase('en')===key));if(exact.length===1)return exact[0];const initials=userLabels.filter(u=>[u.initials,suggestedInitials(u.name,u.email)].some(v=>v.toLocaleLowerCase('en')===key));return initials.length===1?initials[0]:null;}
+  function updateUserLabels(rows){for(const row of rows){const u={id:row.user_id||row.id||'',email:String(row.email||''),name:String(row.name||''),initials:String(row.initials||suggestedInitials(row.name,row.email))};const index=userLabels.findIndex(old=>u.id&&old.id===u.id||u.email&&old.email.toLowerCase()===u.email.toLowerCase());if(index<0)userLabels.push(u);else userLabels[index]=u;const projectUser=(window.CDPProjectUsers||[]).find(p=>p.id===u.id||p.email===u.email);if(projectUser){projectUser.initials=u.initials;if(u.name)projectUser.name=u.name;}}const own=userLabels.find(u=>u.id===signedInUserId);if(own){const avatar=document.querySelector('#profileAvatar');if(avatar){avatar.textContent=own.initials;avatar.title=own.name||own.email;}}}
+  window.CDPUserLabels={suggest:suggestedInitials,find:findUserLabel,update:updateUserLabels,initials:value=>findUserLabel(value)?.initials||value,title:value=>{const u=findUserLabel(value);return u?[u.name,u.email].filter(Boolean).join(' · '):value;}};
   function applySession(session) {
     const email = session?.user?.email || "";
-    window.CDPProjectUsers=[{id:session?.user?.id,email,name:session?.user?.user_metadata?.full_name||email}];
-    window.CDPLoadProjectUsers=async()=>{try{const result=await client.rpc('cdp_list_project_users');if(!result.error&&Array.isArray(result.data)&&result.data.length){window.CDPProjectUsers=result.data;window.CDPProjectUsersConfigured=true;}}catch{/* The signed-in user remains available before the optional directory is installed. */}};
+    signedInUserId=session?.user?.id||'';
+    userLabels.length=0;
+    window.CDPProjectUsers=[{id:signedInUserId,email,name:session?.user?.user_metadata?.full_name||session?.user?.user_metadata?.name||email}];
+    window.CDPLoadProjectUsers=async({all=false}={})=>{
+      if(all){
+        window.CDPProjectUsersComplete=false;
+        try{
+          const users=await window.CDPReadUserDirectory();
+          window.CDPProjectUsers=users.filter(u=>u.email.trim()).map(u=>({id:u.user_id,email:u.email,name:u.name,initials:u.initials})).sort((a,b)=>(a.name||a.email).localeCompare(b.name||b.email));
+          window.CDPProjectUsersConfigured=true;window.CDPProjectUsersComplete=true;return;
+        }catch{/* Fall back to the authorized internal directory without hiding a failed full load. */}
+      }
+      try{const result=await client.rpc('cdp_list_project_users');if(!result.error&&Array.isArray(result.data)&&result.data.length){window.CDPProjectUsers=result.data;window.CDPProjectUsersConfigured=true;}}catch{}
+      try{const result=await client.rpc('cdp_list_user_initials');if(!result.error&&Array.isArray(result.data)&&result.data.length){updateUserLabels(result.data);for(const u of result.data)if(!(window.CDPProjectUsers||[]).some(p=>p.id===u.id))window.CDPProjectUsers.push(u);window.CDPProjectUsersConfigured=true;}}catch{/* Initials are optional until migration 007 is installed. */}
+    };
     window.CDPReadUserDirectory=async()=>{
-      const result=await client.rpc('cdp_admin_list_users');
+      let result=await client.rpc('cdp_admin_list_users_v2');
+      window.CDPUserInitialsConfigured=true;
+      if(result.error&&['PGRST202','42883'].includes(result.error.code)){window.CDPUserInitialsConfigured=false;result=await client.rpc('cdp_admin_list_users');}
       if(result.error)throw result.error;
       if(!Array.isArray(result.data))throw new Error('Invalid directory response');
-      return result.data.map(u=>({name:String(u.name||''),email:String(u.email||''),role:String(u.role||"Not specified"),account_status:String(u.account_status||"Not specified"),created_at:u.created_at||null,last_sign_in_at:u.last_sign_in_at||null}));
+      const users=result.data.map(u=>({user_id:String(u.user_id||''),name:String(u.name||''),email:String(u.email||''),initials:String(u.initials||suggestedInitials(u.name,u.email)),can_edit_initials:u.can_edit_initials===true,role:String(u.role||'Not specified'),account_status:String(u.account_status||'Not specified'),created_at:u.created_at||null,last_sign_in_at:u.last_sign_in_at||null}));
+      updateUserLabels(users);return users;
+    };
+    window.CDPSaveUserInitials=async(user,initials,expected)=>{
+      const normalized=String(initials).trim().toUpperCase();if(!/^[\p{L}\p{N}]{1,6}$/u.test(normalized))throw Error('Enter 1–6 letters or digits.');
+      const result=await client.rpc('cdp_save_user_initials',{target_user_id:user.user_id,new_initials:normalized,expected_initials:expected});
+      if(result.error)throw result.error;
+      if(typeof result.data!=='string'||!result.data)throw Error('The saved initials could not be confirmed. Refresh the list.');
+      updateUserLabels([{...user,initials:result.data}]);return result.data;
     };
     const local = email.split("@")[0] || "";
     const letters = local.replace(/[^a-zA-Z0-9ÅÄÖåäö]/g, "");
@@ -104,6 +136,7 @@
       name.textContent = email || "Signed in";
       name.title = email;
     }
+    updateUserLabels(window.CDPProjectUsers);
     if (role) role.textContent = "Signed in";
     if (heading) heading.textContent = local ? `${greeting()}, ${local}` : greeting();
   }
@@ -123,6 +156,7 @@
         await loadScript(`JS/rfq-project.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/remote.js?v=${ASSET_VERSION}`);
         await window.CDPRemote.start(client);
+        await window.CDPLoadProjectUsers();
         await loadScript(`JS/data.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/xlsx.js?v=${ASSET_VERSION}`);
         await loadScript(`JS/app.js?v=${ASSET_VERSION}`);

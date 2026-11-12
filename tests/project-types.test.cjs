@@ -1,0 +1,22 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const ctx={window:{},crypto,console,Date,Promise,AbortSignal};vm.createContext(ctx);
+for(const name of ['structure','workflow','rfq-project','remote'])vm.runInContext(fs.readFileSync(__dirname+'/../JS/'+name+'.js','utf8'),ctx);
+const S=ctx.window.CDPStructure,G=ctx.window.CDPProjectRfq,R=ctx.window.CDPRemote;
+(async()=>{
+const db=require('./fake-server.cjs')(),adapter=R.createAdapter(db,db.db),s=adapter.state;
+const legacy=S.createProject(s,{name:'Legacy'});delete legacy.projectType;delete legacy.phaseMode;legacy.phases.push({id:'old',name:'Phase 1',items:[],calculation:S.defaults()});const original=JSON.stringify(legacy.phases);S.migrate(s);assert.equal(legacy.projectType,'complete');assert.equal(legacy.phaseMode,'multiple');assert.equal(JSON.stringify(legacy.phases),original);
+const p=S.createProject(s,{name:'Simple',projectType:'simple',phaseMode:'single'});assert.equal(p.phases.length,1);const phaseId=p.phases[0].id;
+const a={id:'a',projectId:p.id,name:'Rug',shape:'Rektangulär',widthCm:100,lengthCm:200,quantity:3,bom:[]};s.articles.push(a);S.setProductionPrice(s,a.id,{price:100});
+let calc=S.calculate(s,p);assert.equal(calc.productionCost,600);assert.equal(calc.phases[0].items[0].quantity,3);const quote=S.snapshot(s,p),frozen=JSON.stringify(quote);
+a.quantity=7;assert.equal(S.calculate(s,p).productionCost,1400);assert.equal(p.phases[0].id,phaseId);assert.equal(JSON.stringify(quote),frozen);
+S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'single',productionStart:'2027-01-01',deliveryDate:'2027-02-01'});
+const before=JSON.stringify(p);assert.throws(()=>S.setProjectOptions(s,p,{projectType:'complete',phaseMode:'single',productionStart:'2028-01-01',deliveryDate:'2027-01-01'}));assert.equal(JSON.stringify(p),before);
+s.manufacturers.push({id:'m',name:'Manufacturer'});assert.throws(()=>G.configure(s,p,['a'],['m']));
+S.setProjectOptions(s,p,{projectType:'complete',phaseMode:'single'});p.qualitySamples=[];const sample=S.saveQualitySample(s,p,'',{size:'30 x 30 cm',articleIds:['a']});const g=G.configure(s,p,['a'],['m'],[sample.id],{},'complete');G.publish(s,p,'m');assert.equal(g.lines[0].quantity,7);assert.equal(g.lines[0].productionStart,'2027-01-01');
+assert.throws(()=>S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'single'}));assert.equal(p.projectType,'complete');
+const revision=g.revision;S.setProjectOptions(s,p,{projectType:'complete',phaseMode:'single',deliveryDate:'2027-03-01'});G.sync(s,p);assert.equal(g.revision,revision+1);assert.equal(G.supplierView(s,'m')[0].lines[0].deliveryDate,'2027-03-01');
+await adapter.save();const re=R.createAdapter(db,db.db),rp=re.state.projects.find(x=>x.id===p.id);assert.equal(rp.phaseMode,'single');assert.equal(rp.phases[0].id,phaseId);const savedRevision=rp.projectRfq.revision;G.sync(re.state,rp);assert.equal(rp.projectRfq.revision,savedRevision);const calls=db.calls.length;await re.save();assert.equal(db.calls.length,calls);
+G.withdraw(p,'m');S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'multiple'});assert.equal(p.phases[0].id,phaseId);a.quantity=9;S.calculate(s,p);assert.equal(p.phases[0].items[0].quantity,7);assert.throws(()=>S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'single'}));p.phases[0].items[0].quantity=9;S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'single'});assert.equal(p.phases[0].items[0].quantity,9);
+S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'multiple'});p.phases.push({id:'extra',name:'Phase 2',items:[],calculation:S.defaults()});assert.throws(()=>S.setProjectOptions(s,p,{projectType:'simple',phaseMode:'single'}));assert.equal(p.phases.length,2);
+console.log('PASS legacy preservation, Simple costing without BOM, single quantity sync, immutable quote, setup guards, complete single RFQ dates/revisions and cloud round trip');
+})().catch(e=>{console.error(e);process.exitCode=1;});

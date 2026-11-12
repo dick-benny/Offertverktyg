@@ -4,7 +4,7 @@
   const clone = x => JSON.parse(JSON.stringify(x));
   const uid = prefix => prefix + '-' + crypto.randomUUID();
   const today = () => new Date().toLocaleDateString('sv-SE');
-  const defaults = () => ({deliveryTerm:'DAP', freightCost:0, customerFreight:0, dutyCost:0, importVatCost:0, otherImportCost:0, otherDeliveryCost:0, includeImportVatInCost:false, freightPresentation:'Separat rad'});
+  const defaults = () => ({deliveryTerm:'DAP', freightCost:0, freightMarkupPercent:15, customerFreight:0, dutyCost:0, importVatCost:0, otherImportCost:0, otherDeliveryCost:0, includeImportVatInCost:false, freightPresentation:'Separat rad'});
   function migrate(s) {
     const first = Number(s.schemaVersion || 0) < 6;
     for (const k of ['leads','projects','articles','quotations','inquiries','manufacturers','meetings','rfqs']) if (!Array.isArray(s[k])) s[k]=[];
@@ -22,13 +22,45 @@
       s.leads.forEach(l=>{if(l.status==='Konverterat')l.status=l.projectId?'Go':'Aktivt';});
     }
     s.projects.forEach(p=>{
+      p.projectType = p.projectType === "simple" ? "simple" : "complete";
+      p.phaseMode = p.phaseMode === "single" ? "single" : "multiple";
       if(!Array.isArray(p.phases)) p.phases=[{id:'PH-'+p.id+'-1',name:"Phase 1",productionStart:'',deliveryDate:p.deliveryDate||'',items:s.articles.filter(a=>a.projectId===p.id).map(a=>({articleId:a.id,quantity:Number(a.quantity)||1})),calculation:{...defaults(),...clone(p.calculation||{})}}];
+      syncSinglePhase(s,p);
       p.phases.forEach(ph=>{if(!Array.isArray(ph.items))ph.items=[];ph.calculation={...defaults(),...(ph.calculation||{})};});
       p.calculation={targetMargin:45,validityDays:30,paymentTerms:"50% on order / 50% before delivery",...(p.calculation||{})};
     });
     s.articles.forEach(a=>{if(!Array.isArray(a.bom))a.bom=[];if(a.specification==null)a.specification='';});
     s.schemaVersion=6;
     return s;
+  }
+  // A single delivery uses the same phase model as costing and RFQs, without manual allocation.
+  function syncSinglePhase(s,p){
+    if(p.phaseMode!=='single')return;
+    if(p.phases?.length>1)throw Error("Multiple phases exist. Keep Multiple phases to preserve their allocations.");
+    p.phases ||= [];
+    if(!p.phases.length)p.phases.push({id:uid('PH'),name:'Delivery',productionStart:'',deliveryDate:'',items:[],calculation:defaults()});
+    const ph=p.phases[0],old=new Map((ph.items||[]).map(i=>[i.articleId,i]));
+    ph.items=s.articles.filter(a=>a.projectId===p.id).map(a=>({...old.get(a.id),articleId:a.id,quantity:Number(a.quantity??1)}));
+  }
+  function setProjectOptions(s,p,v){
+    if(!['simple','complete'].includes(v.projectType)||!['single','multiple'].includes(v.phaseMode))throw Error("Select a project type and delivery setup.");
+    if(v.projectType==='simple'&&p.projectType!=='simple'){
+      const active=[p.projectRfq,p.preliminaryRfq].some(g=>g?.recipients?.some(r=>r.publishedRevision&&!r.withdrawn));
+      if(active||s.rfqs.some(r=>r.projectId===p.id&&r.sentAt)||(p.modelSampleOrders||[]).some(o=>o.sentAt))throw Error("This project has sent RFQs or full-size sample orders. Keep Complete while these records are in use.");
+    }
+    if(v.phaseMode==='single'&&p.phaseMode!=='single'){
+      if(p.phases.length>1)throw Error("This project has multiple phases. Keep Multiple phases to preserve their dates, costs and allocations.");
+      const items=p.phases[0]?.items||[];
+      if(items.length&&(s.articles.filter(a=>a.projectId===p.id).some(a=>items.filter(i=>i.articleId===a.id).length!==1||Number(items.find(i=>i.articleId===a.id)?.quantity)!==Number(a.quantity??1))||items.some(i=>!s.articles.some(a=>a.id===i.articleId&&a.projectId===p.id))))throw Error("The phase has a custom article allocation. Match it to the full project quantities before selecting One phase.");
+    }
+    if(v.phaseMode==='single'&&v.productionStart&&v.deliveryDate&&v.productionStart>v.deliveryDate)throw Error("Production start must precede the delivery date.");
+    p.projectType=v.projectType;p.phaseMode=v.phaseMode;
+    syncSinglePhase(s,p);
+    if(p.phaseMode==='single'){
+      if(v.productionStart!==undefined)p.phases[0].productionStart=v.productionStart;
+      if(v.deliveryDate!==undefined)p.phases[0].deliveryDate=v.deliveryDate;
+    }
+    return p;
   }
   function go(s,id){
     const l=s.leads.find(l=>l.id===id);if(!l)throw Error("The lead is missing.");
@@ -47,6 +79,7 @@
   function price(a){return a.selectedPrice?{...a.selectedPrice,pricePerSqm:a.selectedPrice.price}:a;}
   const cents=n=>Math.round((n+Number.EPSILON)*100)/100;
   function calculate(s,p){
+    syncSinglePhase(s,p);
     const errors=[],warnings=[];
     const margin=Number(p.calculation?.targetMargin ?? 45);
     if(!Number.isFinite(margin)||margin<0||margin>=100)errors.push("Margin must be at least 0 and less than 100%.");
@@ -72,11 +105,15 @@
         const cost=(unit==='fast pris'?(base+(Number(a.additionalCost)||0))*qty/counts.get(a.id):((unit==='per m²'?area(a)*base:base)+(Number(a.additionalCost)||0))*qty)*(rate||0);
         return {...clone(a),articleId:a.id,quantity:qty,area:area(a),totalArea:area(a)*qty,manufacturer:r.manufacturer||a.manufacturer,pricePerSqm:base,priceUnit:unit,cost,unitCost:cost/qty,phaseId:ph.id};
       }).filter(Boolean);
-      for(const k of ['freightCost','customerFreight','dutyCost','importVatCost','otherImportCost','otherDeliveryCost'])if(!Number.isFinite(Number(c[k]))||Number(c[k])<0)errors.push(ph.name+": invalid delivery cost.");
+      if(c.freightPricing==='markup'){
+        if(!Number.isFinite(Number(c.freightMarkupPercent))||Number(c.freightMarkupPercent)<0)errors.push(ph.name+': freight markup must be zero or greater.');
+        c.customerFreight=cents(Number(c.freightCost)*(1+Number(c.freightMarkupPercent)/100));
+      }
+      for(const k of ['freightCost','customerFreight','otherDeliveryCost',...(c.deliveryTerm==='DDP'?['dutyCost','importVatCost','otherImportCost']:[])])if(!Number.isFinite(Number(c[k]))||Number(c[k])<0)errors.push(ph.name+": invalid delivery cost.");
       const productionCost=items.reduce((n,a)=>n+a.cost,0),freightCost=Number(c.freightCost)||0;
       const dutyCost=c.deliveryTerm==='DDP'?Number(c.dutyCost)||0:0,importVatCost=c.deliveryTerm==='DDP'&&c.includeImportVatInCost?Number(c.importVatCost)||0:0,otherImportCost=c.deliveryTerm==='DDP'?Number(c.otherImportCost)||0:0;
       const totalCost=productionCost+freightCost+dutyCost+importVatCost+otherImportCost+(Number(c.otherDeliveryCost)||0);
-      const salesPrice=cents(totalCost/(1-margin/100));
+      const salesPrice=cents(c.freightPricing==='markup'?(totalCost-freightCost)/(1-margin/100)+c.customerFreight:totalCost/(1-margin/100));
       const freightShown=c.freightPresentation==='Separat rad'?Number(c.customerFreight)||0:0;
       if(freightShown>salesPrice)errors.push(ph.name+": freight charged exceeds the phase quotation price.");
       if(!items.length&&salesPrice>freightShown)errors.push(ph.name+": add articles to allocate the quotation price.");
@@ -85,7 +122,7 @@
     });
     const sum=k=>phases.reduce((n,p)=>n+p[k],0);
     // Reconcile the final cent against the project formula, not a sum of rounded phases.
-    const correction=cents(cents(sum('totalCost')/(1-margin/100))-sum('salesPrice'));
+    const correction=cents(cents(phases.reduce((n,ph)=>n+(ph.calculation.freightPricing==='markup'?(ph.totalCost-ph.freightCost)/(1-margin/100)+ph.calculation.customerFreight:ph.totalCost/(1-margin/100)),0))-sum('salesPrice'));
     const last=phases.filter(ph=>ph.items.length).at(-1);
     if(last && correction){last.salesPrice=cents(last.salesPrice+correction);const item=last.items.at(-1);item.salesTotal=cents(item.salesTotal+correction);item.salesUnit=item.salesTotal/item.quantity;}
     return {phases,productionCost:sum('productionCost'),freightCost:sum('freightCost'),dutyCost:sum('dutyCost'),importVatCost:sum('importVatCost'),otherImportCost:sum('otherImportCost'),totalCost:sum('totalCost'),salesPrice:cents(sum('salesPrice')),grossProfit:sum('salesPrice')-sum('totalCost'),margin,errors:[...new Set(errors)],warnings:[...new Set(warnings)]};
@@ -99,7 +136,7 @@
     const n=Math.max(0,...s.projects.map(p=>p.id.startsWith(prefix)?Number(p.id.slice(prefix.length))||0:0))+1;
     const customer=String(v.customer||'').trim(),country=String(v.country||'').trim();
     const billing={name:customer,country,address:'',zip:'',city:'',vatNumber:'',contact:'',email:''};
-    const p={id:window.CDPRemote?crypto.randomUUID():prefix+String(n).padStart(4,'0'),name,customer,country,currency:v.currency||'EUR',value,probability,owner:v.owner||'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:"Plan articles and phases",createdAt:today(),createdDirectly:true,phases:[],description:v.description||'',customerData:{sameAsBilling:true,billing,delivery:{...billing,phone:''}},preliminaryScope:[],designFiles:[]};
+    const p={id:window.CDPRemote?crypto.randomUUID():prefix+String(n).padStart(4,'0'),name,customer,country,currency:v.currency||'EUR',value,probability,owner:v.owner||'DE',phase:'Kalkyl',businessStatus:'Aktivt',next:"Plan articles and phases",createdAt:today(),createdDirectly:true,projectType:v.projectType==='simple'?'simple':'complete',phaseMode:v.phaseMode==='single'?'single':'multiple',phases:[],description:v.description||'',customerData:{sameAsBilling:true,billing,delivery:{...billing,phone:''}},preliminaryScope:[],designFiles:[]};
     s.projects.unshift(p);migrate(s);return p;
   }
   function loseProject(s,id,v){
@@ -115,5 +152,5 @@
     return p;
   }
   function reopenProject(s,id){const p=s.projects.find(p=>p.id===id);if(!p)throw Error("The project is missing.");if(p.businessStatus!=='Förlorat')return p;const old=p.beforeLoss||{};Object.assign(p,{businessStatus:'Aktivt',phase:['Kalkyl','Offert skickad','Förhandling'].includes(old.phase)?old.phase:'Kalkyl',probability:old.probability??20,next:old.next||"Planera next steg"});p.history=p.history||[];p.history.push({status:'Aktivt',date:today(),note:"Reactivated"});return p;}
-  window.CDPStructure={migrate,go,calculate,snapshot,area,price,uid,today,defaults,clone,createProject,loseProject,reopenProject};
+  window.CDPStructure={migrate,go,calculate,snapshot,area,price,uid,today,defaults,clone,createProject,loseProject,reopenProject,syncSinglePhase,setProjectOptions};
 })();

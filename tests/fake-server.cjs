@@ -4,6 +4,8 @@ const same=(a,b)=>Object.keys(b).every(k=>JSON.stringify(a[k])===JSON.stringify(
 function server(){let db=blank(),calls=[],fail=false,lostReply=false;
 return {get db(){return clone(db);},get calls(){return calls;},set fail(v){fail=v;},set lostReply(v){lostReply=v;},async rpc(name,args){
 calls.push(name);if(fail)return {error:{message:'Network failed'}};
+if(['cdp_list_project_users','cdp_list_user_initials'].includes(name))return {data:[]};
+if(name==='cdp_admin_list_users_v2')return {error:{code:'PGRST202',message:'Function not installed'}};
 if(name==='cdp_read_state')return {data:clone(db)};
 const staged=clone(db),result=[];
 try{for(const c of args.changes){const list=staged[c.table],r=clone(c.row),old=list.find(x=>x.id===r.id);

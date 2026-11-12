@@ -283,3 +283,9 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .user-admin-table { min-width:750px; }
 .user-admin-proposals { margin-top:24px; }
 .user-admin-proposals button:disabled { opacity:.5; cursor:not-allowed; }
+
+.user-initials-editor { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:145px; }
+.user-initials-editor input { width:72px; padding:8px; text-transform:uppercase; }
+.user-initials-editor [data-initials-status] { flex-basis:100%; font-size:12px; max-width:210px; }
+[data-ddp-fields][hidden] { display: none !important; }
+[data-customer-freight] { display: block; padding: 10px 0; font-size: 16px; font-weight: 600; }

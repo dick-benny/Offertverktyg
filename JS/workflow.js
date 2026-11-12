@@ -43,6 +43,7 @@
     return t;
   }
   function createRfq(state, project, article, manufacturerId, sample = {}) {
+    if(project.projectType==='simple')throw Error("Switch this project to Complete to use RFQs.");
     if (!state.manufacturers.some(m => m.id === manufacturerId && m.active !== false)) throw Error("Select an active manufacturer.");
     const r = {id:S.uid('RFQ'),workspaceId:state.workspaceId,projectId:project.id,articleId:article.id,manufacturerId,status:'Förfrågan',decision:'pending',createdAt:S.today(),history:[],
       requestSnapshot:{projectReference:project.id,article:{code:article.code,name:article.name,...specification(article)},phases:project.phases.flatMap(ph => ph.items.filter(i=>i.articleId===article.id).map(i=>({id:ph.id,name:ph.name,quantity:i.quantity,productionStart:ph.productionStart,deliveryDate:ph.deliveryDate}))),sample:clone(sample)}};
@@ -184,6 +185,7 @@
  S.qualitySamples=function(state,p){return p.qualitySamples||state.articles.filter(a=>a.projectId===p.id&&(a.sample||(p.projectRfq?.sampleIds||[]).includes(a.id))).map(a=>{const prior=S.articleSample(state,a);return {id:a.id,name:a.name,articleIds:[a.id],size:prior.size||"Not specified",quantity:1,instructions:prior.instructions||'',price:0};});};
  S.qualitySampleName=function(state,sample){return (sample.articleIds||[]).map(id=>state.articles.find(a=>a.id===id)?.name).filter(Boolean).join(' / ')||sample.name||"Article missing";};
  S.saveQualitySample=function(state,p,id,v){
+  if(p.projectType==='simple')throw Error("Switch this project to Complete to use samples.");
   const size=String(v.size||'').trim(),articleIds=[...new Set(v.articleIds||[])];
   if(!size||!articleIds.length)throw Error("Select at least one linked article and enter the size.");
   if(articleIds.some(id=>!state.articles.some(a=>a.id===id&&a.projectId===p.id)))throw Error("Select project articles.");

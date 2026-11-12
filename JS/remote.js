@@ -50,6 +50,7 @@
   }
 
   function encode(s) {
+    s.projects.forEach(p=>window.CDPStructure.syncSinglePhase(s,p));
     const rows=Object.fromEntries(tables.map(t=>['cdp_'+t,[]]));
     const put=(t,o,v)=>{const r={id:id(o),...v,archived_at:null};rows['cdp_'+t].push(r);return r.id;};
     const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error("A linked record is missing. Reload the application.");return id(o);};
