@@ -320,3 +320,8 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .project-action-options button { text-align:left; padding:10px; }
 .project-overview-financials .calc-summary { grid-template-columns:repeat(4,minmax(0,1fr)); }
 @media(max-width:760px) { .project-overview-financials .calc-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.project-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.project-card-heading button { min-width:0; overflow-wrap:anywhere; }
+.project-card-heading .owner-dot { flex-shrink:0; }
+.project-card > p { margin-bottom:0; }

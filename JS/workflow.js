@@ -252,3 +252,25 @@
  };
  S.products={keys,sync,find,save,link,overrides,articleName,spec,assertUnique};
 })();
+
+// Copy project articles as independent products and specifications, without order history.
+(() => {
+ const S=window.CDPStructure;
+ S.copyProjectArticles=function(state,targetId,sourceId,ids){
+  const target=state.projects.find(p=>p.id===targetId),source=state.projects.find(p=>p.id===sourceId);
+  if(!target||!source||target===source)throw Error('Select another project.');
+  const selected=[...new Set(ids)].map(id=>state.articles.find(a=>a.id===id&&a.projectId===sourceId));
+  if(!selected.length||selected.some(a=>!a))throw Error('Select articles from the source project.');
+  const products=[],articles=[],mapping=new Map(),names=new Set((target.products||[]).map(p=>p.name.trim().toLowerCase()));
+  let number=Math.max(0,...state.articles.filter(a=>a.projectId===targetId).map(a=>Number(String(a.code||'').split('A').pop())||0));
+  for(const a of selected){
+   const original=S.products.find(state,a);if(!original)throw Error('The source product is missing. Reload and try again.');
+   let product=mapping.get(original.id);
+   if(!product){let name=original.name,n=2;while(names.has(name.trim().toLowerCase()))name=original.name+' (copy '+(n++)+')';names.add(name.trim().toLowerCase());product={id:S.uid('product'),name,...S.products.spec(original)};products.push(product);mapping.set(original.id,product);}
+   const next={...S.products.spec(a),id:crypto.randomUUID(),projectId:targetId,productId:product.id,code:targetId+'-A'+String(++number).padStart(2,'0'),status:'Förfrågan',currency:'EUR',pricePerSqm:0,priceUnit:'per m²',additionalCost:0,priceHistory:[],productOverrides:S.clone(a.productOverrides||[])};
+   for(const k of ['name','nameMode','shape','widthCm','lengthCm','manualArea','location','quantity','targetPrice'])if(a[k]!==undefined)next[k]=S.clone(a[k]);
+   S.products.assertUnique({...state,articles:[...state.articles,...articles]},next);articles.push(next);
+  }
+  (target.products||=[]).push(...products);state.articles.push(...articles);S.products.sync(state);S.syncSinglePhase(state,target);return articles;
+ };
+})();
