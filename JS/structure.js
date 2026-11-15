@@ -103,7 +103,7 @@
         // Legacy fixed prices represent the complete article quantity; allocate once across phases.
         const base=Number(r.pricePerSqm)||0;
         const cost=(unit==='fast pris'?(base+(Number(a.additionalCost)||0))*qty/counts.get(a.id):((unit==='per m²'?area(a)*base:base)+(Number(a.additionalCost)||0))*qty)*(rate||0);
-        return {...clone(a),articleId:a.id,quantity:qty,area:area(a),totalArea:area(a)*qty,manufacturer:r.manufacturer||a.manufacturer,pricePerSqm:base,priceUnit:unit,cost,unitCost:cost/qty,phaseId:ph.id};
+        return {...clone(a),productName:(p.products||[]).find(product=>product.id===a.productId)?.name||'',articleId:a.id,quantity:qty,area:area(a),totalArea:area(a)*qty,manufacturer:r.manufacturer||a.manufacturer,pricePerSqm:base,priceUnit:unit,cost,unitCost:cost/qty,phaseId:ph.id};
       }).filter(Boolean);
       if(['markup','markup-import'].includes(c.freightPricing)){
         if(!Number.isFinite(Number(c.freightMarkupPercent))||Number(c.freightMarkupPercent)<0)errors.push(ph.name+': freight markup must be zero or greater.');

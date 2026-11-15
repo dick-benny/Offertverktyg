@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.46";
+  const ASSET_VERSION = "7.9.49";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");

@@ -325,3 +325,5 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .project-card-heading button { min-width:0; overflow-wrap:anywhere; }
 .project-card-heading .owner-dot { flex-shrink:0; }
 .project-card > p { margin-bottom:0; }
+[data-shipping-address][hidden] { display:none !important; }
+
