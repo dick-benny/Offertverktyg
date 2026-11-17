@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.65";
+  const ASSET_VERSION = "7.9.66";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -118,6 +118,9 @@
       const users=result.data.map(u=>({user_id:String(u.user_id||''),name:String(u.name||''),email:String(u.email||''),initials:String(u.initials||suggestedInitials(u.name,u.email)),can_edit_initials:u.can_edit_initials===true,role:String(u.role||'Not specified'),account_status:String(u.account_status||'Not specified'),created_at:u.created_at||null,last_sign_in_at:u.last_sign_in_at||null}));
       updateUserLabels(users);return users;
     };
+    window.CDPCheckUserAdmin=async()=>{const result=await client.rpc('cdp_user_admin_enabled');if(result.error){if(['PGRST202','42883'].includes(result.error.code))return {configured:false,allowed:false};throw result.error;}return {configured:true,allowed:result.data===true};};
+    window.CDPSaveUserProfile=async(user,name,initials)=>{const result=await client.rpc('cdp_save_user_profile',{target_user_id:user.user_id,new_name:name.trim(),new_initials:initials.trim().toUpperCase(),expected_name:user.name,expected_initials:user.initials});if(result.error)throw result.error;if(!result.data?.name||!result.data?.initials)throw Error('Refresh the list to confirm saved details.');updateUserLabels([{...user,...result.data}]);return result.data;};
+    window.CDPCreateUser=async values=>{const result=await client.functions.invoke('projects-user-admin',{body:values});if(result.error){let message='Could not confirm account creation. Refresh the list before retrying. Check the User admin installation instructions.';try{const body=await result.error.context?.json();if(body?.error)message=body.error;}catch{}throw Error(message);}if(result.data?.error)throw Error(result.data.error);if(!result.data?.user_id)throw Error('Refresh the list to confirm account creation.');return result.data;};
     window.CDPSaveUserInitials=async(user,initials,expected)=>{
       const normalized=String(initials).trim().toUpperCase();if(!/^[\p{L}\p{N}]{1,6}$/u.test(normalized))throw Error('Enter 1–6 letters or digits.');
       const result=await client.rpc('cdp_save_user_initials',{target_user_id:user.user_id,new_initials:normalized,expected_initials:expected});
