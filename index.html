@@ -4,18 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cappelen Dimyr Projects sales and quotation management.">
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.9.65">
+  <link rel="icon" type="image/png" sizes="128x128" href="favicon.png?v=7.9.65">
   <title>Cappelen Dimyr Projects v7.9</title>
-  <link rel="stylesheet" href="CSS/styles.css?v=7.9.49">
+  <link rel="stylesheet" href="CSS/styles.css?v=7.9.65">
 <link rel="stylesheet" href="CSS/v6.css?v=7.9">
 </head>
 <body>
   <div id="login-screen">
     <div class="login-card">
       <div class="login-brand">
-        <div class="login-mark" aria-hidden="true">CD</div>
-        <div><strong>Cappelen Dimyr</strong><span>Quotation management</span></div>
+        <img class="login-mark" src="favicon.png?v=7.9.65" alt="" width="46" height="46">
+        <div><strong>MAESTRO</strong><span>Quotation management</span></div>
       </div>
-      <p class="eyebrow">CAPPELEN DIMYR PROJECTS</p>
+      <p class="login-company-name">Cappelen Dimyr Projects AB</p>
       <h1 id="login-title">Sign in</h1>
       <p class="login-lede">Sign in to use quotation management. Only invited users have access.</p>
       <p id="login-status" role="status">Checking sign-in…</p>
@@ -30,7 +32,7 @@
 
   <div class="app-shell" hidden inert>
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark" aria-hidden="true">CD</div><div><strong>Cappelen Dimyr</strong><span>Projects · v7.9</span></div></div>
+      <div class="brand"><img class="brand-mark" src="favicon.png?v=7.9.65" alt="" width="38" height="38"><div><strong>MAESTRO</strong><span>Projects · v7.9</span></div></div>
       <nav class="main-nav" aria-label="Main menu">
         <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Overview</button>
         <button class="nav-item" data-view="meetings"><span class="nav-icon">◷</span>MEETINGS <span class="nav-count muted" id="meetingNavCount"></span></button>
@@ -58,7 +60,7 @@
 
       <div class="content-wrap">
         <section class="view active" id="view-dashboard" data-title="Overview">
-          <div class="page-heading"><div><p class="eyebrow">CAPPELEN DIMYR PROJECTS</p><h1>Good afternoon, Dick</h1><p>Here is the current overview for Cappelen Dimyr Projects.</p></div><button class="button primary" type="button" data-action="new-lead">＋ New lead</button></div>
+          <div class="page-heading"><div><p class="dashboard-company-name">Cappelen Dimyr Projects AB</p><h1>Good afternoon, Dick</h1><p>Here is the current overview for Cappelen Dimyr Projects.</p></div><button class="button primary" type="button" data-action="new-lead">＋ New lead</button></div>
           <div class="metric-grid" id="metricGrid"></div>
           <div class="dashboard-grid"><article class="panel pipeline-panel"><div class="panel-heading"><div><h2>Pipeline</h2><p>Active projects by business stage</p></div><button class="text-button" data-target-view="projects">View all →</button></div><div class="pipeline-chart" id="pipelineChart"></div></article><article class="panel attention-panel"><div class="panel-heading"><div><h2>Needs attention</h2><p>Priority activities</p></div></div><div class="attention-list" id="attentionList"></div></article></div>
           <article class="panel"><div class="panel-heading"><div><h2>Upcoming active leads</h2><p>Sorted by expected project start</p></div><button class="text-button" data-target-view="leads">View all →</button></div><div class="lead-watch-list" id="dashboardLeadRows"></div></article>
@@ -102,7 +104,7 @@
         <section class="view" id="view-agents" data-title="Agents"><div class="page-heading compact"><div><p class="eyebrow">MARKET & INTRODUCTIONS</p><h1>Agents</h1><p>Territories, registered opportunities, outcomes and commission.</p></div><button class="button primary" data-action="new-agent">＋ New agent</button></div><div class="agent-grid" id="agentGrid"></div></section>
         <section class="view" id="view-customers" data-title="Customers"><div class="page-heading compact"><div><p class="eyebrow">RELATIONSHIPS</p><h1>Customers & contacts</h1><p>Buyers, architects, designers and purchasing companies.</p></div></div><div id="customerRegister"></div></section>
         <section class="view" id="view-manufacturers" data-title="Manufacturers"><div class="page-heading compact"><div><p class="eyebrow">PURCHASING & PRODUCTION</p><h1>Manufacturers</h1><p>Register of manufacturers available for project articles and prices.</p></div><button class="button primary" data-action="new-manufacturer">＋ New manufacturer</button></div><p><button class="button secondary" data-supplier-preview>Test supplier portal</button></p><div class="agent-grid" id="manufacturerGrid"></div></section>
-        <section class="view" id="view-settings" data-title="Settings"><div class="page-heading compact"><div><p class="eyebrow">ADMINISTRATION</p><h1>Settings</h1><p>Company details used as master data in new quotations.</p></div></div><form id="companySettingsForm" class="settings-grid"><article class="panel company-settings"><h2>Company details</h2><div class="form-grid"><label class="field full"><span>Company name</span><input name="name" required></label><label class="field full"><span>Address</span><input name="address"></label><label class="field"><span>ZIP</span><input name="zip"></label><label class="field"><span>City</span><input name="city"></label><label class="field"><span>Country</span><input name="country"></label><label class="field"><span>Company reg. no.</span><input name="orgNumber"></label><label class="field"><span>VAT number</span><input name="vatNumber"></label><label class="field"><span>EORI</span><input name="eori"></label><label class="field full"><span>IBAN</span><input name="iban"></label><label class="field"><span>BIC / SWIFT</span><input name="bic"></label><label class="field"><span>E-mail</span><input name="email" type="email"></label><label class="field"><span>Phone</span><input name="phone"></label><label class="field"><span>Web</span><input name="web"></label></div><div class="settings-actions"><button class="button primary">Save company details</button></div></article><article class="panel"><h2>Quotation rules</h2><p class="detail-sub">The default costing margin is currently 45%. Each quotation version saves a snapshot of both company and customer details.</p><label class="field"><span>Default margin</span><div class="input-suffix"><input value="45" type="number" disabled><span>%</span></div></label><label class="field"><span>Margin requiring approval</span><div class="input-suffix"><input value="35" type="number" disabled><span>%</span></div></label></article></form></section>
+        <section class="view" id="view-settings" data-title="Settings"><div class="page-heading compact"><div><p class="eyebrow">ADMINISTRATION</p><h1>Settings</h1><p>Company details used as master data in new quotations.</p></div></div><form id="companySettingsForm" class="settings-grid"><article class="panel company-settings"><h2>Company details</h2><div class="form-grid"><label class="field full"><span>Company name</span><input name="name" required></label><label class="field full"><span>Address</span><input name="address"></label><label class="field"><span>ZIP</span><input name="zip"></label><label class="field"><span>City</span><input name="city"></label><label class="field"><span>Country</span><input name="country"></label><label class="field"><span>Company reg. no.</span><input name="orgNumber"></label><label class="field"><span>VAT number</span><input name="vatNumber"></label><label class="field"><span>EORI</span><input name="eori"></label><label class="field full"><span>IBAN</span><input name="iban"></label><label class="field"><span>BIC / SWIFT</span><input name="bic"></label><label class="field"><span>E-mail</span><input name="email" type="email"></label><label class="field"><span>Phone</span><input name="phone"></label><label class="field"><span>Web</span><input name="web"></label></div><div class="settings-actions"><button class="button primary">Save company details</button></div></article><article class="panel"><h2>Quotation rules</h2><p class="detail-sub">The default costing margin is currently 45%. Each quotation version saves a snapshot of both company and customer details.</p><label class="field"><span>Default margin</span><div class="input-suffix"><input value="45" type="number" disabled><span>%</span></div></label><label class="field"><span>Margin requiring approval</span><div class="input-suffix"><input value="35" type="number" disabled><span>%</span></div></label><section class="shipping-rules"><h2>Shipping rules</h2><p class="detail-sub">General times in whole weeks, used to calculate the latest production start for each project's requested delivery week.</p><label class="field"><span>Production time (weeks)</span><input form="productionPlanningForm" name="productionWeeks" type="number" min="0" max="520" step="1" required></label><label class="field"><span>Air freight time (weeks)</span><input form="productionPlanningForm" name="airWeeks" type="number" min="0" max="520" step="1" required></label><label class="field"><span>Sea freight time (weeks)</span><input form="productionPlanningForm" name="seaWeeks" type="number" min="0" max="520" step="1" required></label><div class="settings-actions"><button form="productionPlanningForm" class="button primary">Save shipping rules</button></div></section></article></form><form id="productionPlanningForm" data-inline></form></section>
       </div>
     </main>
   </div>
@@ -110,7 +112,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="vendor/supabase.js?v=7.9"></script>
   <script src="JS/supabase-config.js?v=7.9"></script>
-  <script src="JS/auth.js?v=7.9.49"></script>
+  <script src="JS/auth.js?v=7.9.65"></script>
 </body>
 </html>
 

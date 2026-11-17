@@ -202,7 +202,7 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 #login-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, rgba(112, 131, 110, .2), transparent 46%), var(--paper); }
 .login-card { width: min(440px, 100%); background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 32px 28px 28px; }
 .login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
-.login-mark { width: 46px; height: 46px; border: 1px solid var(--ink); border-radius: 50%; display: grid; place-items: center; font-family: Georgia, serif; letter-spacing: .08em; font-size: 14px; }
+.login-mark { width: 46px; height: 46px; display: block; object-fit: contain; flex-shrink: 0; }
 .login-brand strong, .login-brand span { display: block; }
 .login-brand strong { font-family: Georgia, serif; font-weight: 400; font-size: 18px; }
 .login-brand span { color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: 9px; margin-top: 3px; }
@@ -327,3 +327,25 @@ td { padding: 13px 14px; border-bottom: 1px solid var(--soft-line); font-size: 1
 .project-card > p { margin-bottom:0; }
 [data-shipping-address][hidden] { display:none !important; }
 
+
+[data-sample-shipping][hidden] { display:none !important; }
+
+.shipping-rules { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); }
+
+.delivery-planning-row { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; }
+[data-planning-note]:empty { display:none; }
+@media(max-width:640px) { .delivery-planning-row { grid-template-columns:1fr; } }
+
+.brand { background:#eeeee8; color:#20231f; border-radius:10px; padding:12px; gap:12px; }
+.brand span { color:#59624f; }
+.brand-mark { display:block; object-fit:contain; flex-shrink:0; border:0; border-radius:0; }
+.delivery-planning-row { align-items:stretch; }
+.delivery-planning-row > .field { grid-template-rows:auto 42px; }
+.delivery-planning-row > .field > span { min-height:2.6em; }
+.delivery-planning-row output { display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:650; min-height:42px; }
+.delivery-planning-row input { height:42px; box-sizing:border-box; }
+.delivery-planning-row > .field:has(output) > span { text-align:center; }
+
+.login-company-name { margin:0 0 10px; color:var(--sage-dark); font-size:16px; font-weight:650; line-height:1.4; }
+
+#view-dashboard .page-heading .dashboard-company-name { font-size:24px; font-weight:650; line-height:1.35; color:var(--sage-dark); margin:0 0 10px; }

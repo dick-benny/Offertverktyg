@@ -58,7 +58,7 @@
     const find=(collection,key)=>{const o=collection.find(o=>o.id===key);if(!o)throw Error("A linked record is missing. Reload the application.");return id(o);};
     const details=(o,keys=[])=>clone(without(o,['_dbId',...keys]));
     let companyId=null;
-    if(s.company.name?.trim()||s.company._dbId||s.articleTemplates?.length||s.inquiries?.length)companyId=put('companies',s.company,{name:s.company.name||'',details:{...details(s.company),_projectsApp:{schemaVersion:7,articleTemplates:clone(s.articleTemplates||[]),inquiries:clone(s.inquiries||[])}}});
+    if(s.company.name?.trim()||s.company._dbId||s.company.productionPlanning||s.articleTemplates?.length||s.inquiries?.length)companyId=put('companies',s.company,{name:s.company.name||'',details:{...details(s.company),_projectsApp:{schemaVersion:7,articleTemplates:clone(s.articleTemplates||[]),inquiries:clone(s.inquiries||[])}}});
     else if(Object.entries(s.company).some(([k,v])=>k!=='_dbId'&&v))throw Error("Enter a company name before saving company details.");
     for(const m of s.manufacturers)put('manufacturers',m,{name:m.name,country:m.country||'',contact:m.contact||'',email:m.email||'',phone:m.phone||'',currency:m.currency||'EUR',active:m.active!==false,details:details(m)});
     for(const a of s.agents)put('agents',a,{name:a.name,active:a.active!==false,details:details(a)});

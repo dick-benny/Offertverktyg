@@ -250,7 +250,8 @@
   const articleIds=state.articles.filter(a=>a.projectId===p.id&&a.productId===product.id).map(a=>a.id);
   const result=saveSample(state,p,id,{...v,articleIds});result.productId=product.id;result.name=product.name;return result;
  };
- S.products={keys,sync,find,save,link,overrides,articleName,spec,assertUnique};
+ function ensureProductionSamples(state,p){if(!p)throw Error('Select a project.');return (p.products||[]).find(x=>S.isProductionSamples(x.name))||save(state,p,'',{name:'Production & test samples'});}
+ S.products={ensureProductionSamples,keys,sync,find,save,link,overrides,articleName,spec,assertUnique};
 })();
 
 // Copy project articles as independent products and specifications, without order history.
