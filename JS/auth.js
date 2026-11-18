@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.66";
+  const ASSET_VERSION = "7.9.77";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -90,11 +90,12 @@
     return (parts.length>1?parts[0].slice(0,1)+parts.at(-1).slice(0,1):label.slice(0,2)).toUpperCase()||'U';
   }
   function findUserLabel(value){const key=String(value||'').toLocaleLowerCase('en');if(!key)return null;const exact=userLabels.filter(u=>[u.id,u.email,u.name].some(v=>v&&String(v).toLocaleLowerCase('en')===key));if(exact.length===1)return exact[0];const initials=userLabels.filter(u=>[u.initials,suggestedInitials(u.name,u.email)].some(v=>v.toLocaleLowerCase('en')===key));return initials.length===1?initials[0]:null;}
-  function updateUserLabels(rows){for(const row of rows){const u={id:row.user_id||row.id||'',email:String(row.email||''),name:String(row.name||''),initials:String(row.initials||suggestedInitials(row.name,row.email))};const index=userLabels.findIndex(old=>u.id&&old.id===u.id||u.email&&old.email.toLowerCase()===u.email.toLowerCase());if(index<0)userLabels.push(u);else userLabels[index]=u;const projectUser=(window.CDPProjectUsers||[]).find(p=>p.id===u.id||p.email===u.email);if(projectUser){projectUser.initials=u.initials;if(u.name)projectUser.name=u.name;}}const own=userLabels.find(u=>u.id===signedInUserId);if(own){const avatar=document.querySelector('#profileAvatar');if(avatar){avatar.textContent=own.initials;avatar.title=own.name||own.email;}}}
+  function updateUserLabels(rows){for(const row of rows){const u={id:row.user_id||row.id||'',email:String(row.email||''),name:String(row.name||''),initials:String(row.initials||suggestedInitials(row.name,row.email))};const index=userLabels.findIndex(old=>u.id&&old.id===u.id||u.email&&old.email.toLowerCase()===u.email.toLowerCase());if(index<0)userLabels.push(u);else userLabels[index]=u;const projectUser=(window.CDPProjectUsers||[]).find(p=>p.id===u.id||p.email===u.email);if(projectUser){projectUser.initials=u.initials;if(u.name)projectUser.name=u.name;}}const own=userLabels.find(u=>u.id===signedInUserId);if(own){const avatar=document.querySelector('#profileAvatar');if(avatar){avatar.textContent=own.initials;avatar.title=own.name||own.email;}const display=own.name&&own.name!==own.email?own.name:'';const title=document.querySelector('#view-dashboard h1');if(title)title.textContent=display?`${greeting()}, ${display}`:greeting();const profile=document.querySelector('#profileName');if(profile)profile.textContent=display||'Signed in';}}
   window.CDPUserLabels={suggest:suggestedInitials,find:findUserLabel,update:updateUserLabels,initials:value=>findUserLabel(value)?.initials||(String(value||'').includes('@')?suggestedInitials('',value):String(value||'').length<=6?value:suggestedInitials(value,'')),title:value=>{const u=findUserLabel(value);return u?[u.name,u.email].filter(Boolean).join(' · '):value;}};
   function applySession(session) {
     const email = session?.user?.email || "";
     signedInUserId=session?.user?.id||'';
+    window.CDPCurrentUserId=signedInUserId;
     userLabels.length=0;
     window.CDPProjectUsers=[{id:signedInUserId,email,name:session?.user?.user_metadata?.full_name||session?.user?.user_metadata?.name||email}];
     window.CDPLoadProjectUsers=async({all=false}={})=>{
@@ -109,17 +110,22 @@
       try{const result=await client.rpc('cdp_list_project_users');if(!result.error&&Array.isArray(result.data)&&result.data.length){window.CDPProjectUsers=result.data;window.CDPProjectUsersConfigured=true;}}catch{}
       try{const result=await client.rpc('cdp_list_user_initials');if(!result.error&&Array.isArray(result.data)&&result.data.length){updateUserLabels(result.data);for(const u of result.data)if(!(window.CDPProjectUsers||[]).some(p=>p.id===u.id))window.CDPProjectUsers.push(u);window.CDPProjectUsersConfigured=true;}}catch{/* Initials are optional until migration 007 is installed. */}
     };
+    window.CDPReadManufacturerResponses=async id=>{const r=await client.rpc('cdp_internal_manufacturer_responses',{project_key:id});if(r.error)throw Error(r.error.message||'Install 016_manufacturer_portal_responses.sql.');return r.data||[];};
+    window.CDPSetManufacturerTarget=async(pid,product,value,expected)=>{const r=await client.rpc('cdp_set_manufacturer_target',{project_key:pid,product_key:product,new_target:value,expected_target:expected});if(r.error)throw r.error;};
+    window.CDPReadBomApprovals=async id=>{const result=await client.rpc('cdp_internal_bom_approvals',{project_key:id});if(result.error){if(['PGRST202','42883'].includes(result.error.code))throw Error('Install 015_customer_portal_bom_approvals.sql to view approvals.');throw result.error;}return result.data||[];};
+    window.CDPReadCompanyUsers=async(role,id)=>{const result=await client.rpc('cdp_company_users',{company_role:role,company_id:id});if(result.error){if(['PGRST202','42883'].includes(result.error.code))throw Error('Install 014_company_users.sql to display linked users.');throw result.error;}if(!Array.isArray(result.data))throw Error('Could not load linked users.');return result.data;};
     window.CDPReadUserDirectory=async()=>{
-      let result=await client.rpc('cdp_admin_list_users_v2');
+      let result=await client.rpc('cdp_admin_list_users_v3');
       window.CDPUserInitialsConfigured=true;
-      if(result.error&&['PGRST202','42883'].includes(result.error.code)){window.CDPUserInitialsConfigured=false;result=await client.rpc('cdp_admin_list_users');}
+      if(result.error&&['PGRST202','42883'].includes(result.error.code)){throw Error('Install 011_user_entities_manufacturer_portal.sql to manage company links.');}
       if(result.error)throw result.error;
       if(!Array.isArray(result.data))throw new Error('Invalid directory response');
-      const users=result.data.map(u=>({user_id:String(u.user_id||''),name:String(u.name||''),email:String(u.email||''),initials:String(u.initials||suggestedInitials(u.name,u.email)),can_edit_initials:u.can_edit_initials===true,role:String(u.role||'Not specified'),account_status:String(u.account_status||'Not specified'),created_at:u.created_at||null,last_sign_in_at:u.last_sign_in_at||null}));
+      const users=result.data.map(u=>({user_id:String(u.user_id||''),entity_id:u.entity_id||null,name:String(u.name||''),email:String(u.email||''),initials:String(u.initials||suggestedInitials(u.name,u.email)),can_edit_initials:u.can_edit_initials===true,role:String(u.role||'Not specified'),account_status:String(u.account_status||'Not specified'),created_at:u.created_at||null,last_sign_in_at:u.last_sign_in_at||null}));
       updateUserLabels(users);return users;
     };
     window.CDPCheckUserAdmin=async()=>{const result=await client.rpc('cdp_user_admin_enabled');if(result.error){if(['PGRST202','42883'].includes(result.error.code))return {configured:false,allowed:false};throw result.error;}return {configured:true,allowed:result.data===true};};
-    window.CDPSaveUserProfile=async(user,name,initials)=>{const result=await client.rpc('cdp_save_user_profile',{target_user_id:user.user_id,new_name:name.trim(),new_initials:initials.trim().toUpperCase(),expected_name:user.name,expected_initials:user.initials});if(result.error)throw result.error;if(!result.data?.name||!result.data?.initials)throw Error('Refresh the list to confirm saved details.');updateUserLabels([{...user,...result.data}]);return result.data;};
+    window.CDPSaveUserProfile=async(user,name,initials,role,entityId)=>{const result=await client.rpc('cdp_save_user_profile_v3',{target_user_id:user.user_id,new_name:name.trim(),new_initials:initials.trim().toUpperCase(),expected_name:user.name,expected_initials:user.initials,new_role:role||null,expected_role:user.role,new_entity_id:entityId||null,expected_entity_id:user.entity_id||null});if(result.error){if(['PGRST202','42883'].includes(result.error.code))throw Error('Run 011_user_entities_manufacturer_portal.sql in Supabase to enable company links.');throw result.error;}if(!result.data?.name||!result.data?.initials)throw Error('Refresh the list to confirm saved details.');updateUserLabels([{...user,...result.data}]);return result.data;};
+    window.CDPDeleteUser=async user=>{const result=await client.rpc('cdp_delete_user',{target_user_id:user.user_id,expected_email:user.email,expected_role:user.role});if(result.error){if(['PGRST202','42883'].includes(result.error.code))throw Error('Install 013_delete_user.sql to enable deleting users.');throw result.error;}if(result.data!==true)throw Error('Deletion could not be confirmed. Refresh the list before retrying.');};
     window.CDPCreateUser=async values=>{const result=await client.functions.invoke('projects-user-admin',{body:values});if(result.error){let message='Could not confirm account creation. Refresh the list before retrying. Check the User admin installation instructions.';try{const body=await result.error.context?.json();if(body?.error)message=body.error;}catch{}throw Error(message);}if(result.data?.error)throw Error(result.data.error);if(!result.data?.user_id)throw Error('Refresh the list to confirm account creation.');return result.data;};
     window.CDPSaveUserInitials=async(user,initials,expected)=>{
       const normalized=String(initials).trim().toUpperCase();if(!/^[\p{L}\p{N}]{1,6}$/u.test(normalized))throw Error('Enter 1–6 letters or digits.');
@@ -141,10 +147,15 @@
     }
     updateUserLabels(window.CDPProjectUsers);
     if (role) role.textContent = "Signed in";
-    if (heading) heading.textContent = local ? `${greeting()}, ${local}` : greeting();
+    if (heading) {const display=session?.user?.user_metadata?.full_name||session?.user?.user_metadata?.name||'';heading.textContent=display?`${greeting()}, ${display}`:greeting();}
   }
 
   async function showApp(session) {
+    const access=await client.rpc('cdp_session_role');
+    if(access.error||!['internal','manufacturer','customer'].includes(access.data)){showBlockingMessage('Could not verify account access. Install 010_external_roles.sql and reload.');return;}
+    const portal=document.querySelector('#external-portal');
+    if(access.data!=='internal'){appStarted=true;if(appShell){appShell.hidden=true;appShell.inert=true;}if(loginScreen)loginScreen.hidden=true;portal.hidden=false;portal.querySelector('[data-portal-title]').textContent=access.data==='manufacturer'?'Manufacturer portal':'Customer portal';if(access.data==='manufacturer'){try{await loadScript(`JS/manufacturer-portal.js?v=${ASSET_VERSION}`);await window.CDPManufacturerPortal.start(client,portal);}catch{portal.querySelector('[data-portal-content]').textContent='Could not open the portal. Reload the page to try again.';}}else{try{await loadScript(`JS/customer-portal.js?v=${ASSET_VERSION}`);await window.CDPCustomerPortal.start(client,portal);}catch{portal.querySelector('[data-portal-content]').textContent='Could not open the portal. Reload the page to try again.';}}return;}
+    if(portal)portal.hidden=true;
     applySession(session);
     if (!appStarted) {
       appStarted = true;

@@ -1,0 +1,42 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const assert=require('node:assert/strict'),fs=require('fs');
+const output=require('node:path').join(__dirname,'../test-results');fs.mkdirSync(output,{recursive:true});
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],requests=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));let acceptApproval=false;page.on('dialog',d=>acceptApproval?d.accept():d.dismiss());
+ const state=async()=>{await page.locator('#cloud-save').waitFor({state:'hidden'});return page.evaluate(()=>JSON.parse(JSON.stringify(window.CDPRemote.adapter.state)));};
+ const fill=async(form,values)=>{await state();for(const [k,v]of Object.entries(values))await page.locator(`${form} [name="${k}"]`).fill(String(v));};
+ const submit=async form=>{await page.locator(form+' button').filter({hasText:/^(Save manufacturer|Save lead|Save article|Save phase|Save BOM|Create RFQ specification|Save response|Save sample|Save \/ update PO reference)$/}).click();await page.waitForFunction(()=>!window.CDPRemote.adapter.busy||window.CDPRemote.adapter.failure);};
+ const expand=async locator=>{if(await locator.getAttribute('aria-expanded')!=='true')await locator.click();};
+ const tab=async key=>page.locator(`[data-project-tab="${key}"]`).first().click();
+
+ const db=require('./fake-server.cjs')();let signedIn=false;
+ await page.route('**/vendor/supabase.js*',route=>route.fulfill({contentType:'text/javascript',body:`window.supabase={createClient(){const request=(path,data)=>fetch(path,{method:'POST',body:JSON.stringify(data)}).then(r=>r.json());return {auth:{onAuthStateChange(){},getSession:()=>request('/__test_auth',{action:'session'}),getUser:()=>request('/__test_auth',{action:'user'}),signInWithPassword:()=>request('/__test_auth',{action:'login'}),signOut:()=>request('/__test_auth',{action:'logout'})},rpc:(name,args)=>request('/__test_rpc',{name,args})};}};`}));
+ await page.route('**/__test_rpc',async route=>{const {name,args}=route.request().postDataJSON();await route.fulfill({json:await db.rpc(name,args)});});
+ await page.route('**/__test_auth',async route=>{const {action}=route.request().postDataJSON();if(action==='login')signedIn=true;if(action==='logout')signedIn=false;const user={id:'test-user',email:'qa@example.test'};await route.fulfill({json:action==='user'?{data:{user:signedIn?user:null}}:{data:{session:signedIn?{user}:null}}});});
+
+ const makeProduct=(id='rug')=>({id,name:'Wool '+id,version:1,bom:{material:'Wool',components:[{name:'Yarn',quantity:2,unit:'kg',notes:'Natural'}],links:[]},target:20,price:null,bom_approval:null,articles:[{id:'a-'+id,name:'100x200',quantity:3}],phases:[],unassigned:[]});
+ const p1={id:'p1',name:'Single Hotel',single:true,week:'2027-W10',archived:false,revision:'1',confirmation:null,products:[makeProduct()]};
+ const p2={id:'p2',name:'Phased Hotel',single:false,week:null,archived:false,revision:'1',confirmation:null,products:[{...makeProduct('phase'),phases:[{id:'ph1',name:'Phase 1',week:'2027-W10',articles:[{id:'a-phase',name:'100x200',quantity:1}]},{id:'ph2',name:'Phase 2',week:'2027-W12',articles:[{id:'a-phase',name:'100x200',quantity:1}]}],unassigned:[{id:'a-phase',name:'100x200',quantity:1}]}]};
+ const p3={...p1,id:'p3',name:'Large Hotel',products:Array.from({length:6},(_,i)=>makeProduct('large'+i))};const p4={...p1,id:'p4',name:'Archived Hotel',archived:true,products:[makeProduct('archive')]};
+ const portalData={name:'Maya Maker',manufacturer:'Maker One',projects:[p1,p2,p3,p4]};let actions=0;
+ await page.route('**/__test_rpc',async route=>{const {name,args}=route.request().postDataJSON();if(name==='cdp_session_role')return route.fulfill({json:{data:'manufacturer'}});if(name==='cdp_manufacturer_portal_v2')return route.fulfill({json:{data:portalData}});if(name==='cdp_save_manufacturer_response'){const p=portalData.projects.find(p=>p.id===args.project_key);if(args.expected_revision!==p.revision)return route.fulfill({json:{error:{code:'40001',message:'Changed'}}});const v=p.products.find(v=>v.id===args.product_key);actions++;if(args.action_name==='price'){v.price=args.new_price;p.confirmation=null;p.revision=String(Number(p.revision)+1);}if(args.action_name==='bom'){v.bom_approval={name:'Maya Maker',at:'2026-11-18T10:00:00Z'};p.revision=String(Number(p.revision)+1);}if(args.action_name==='confirm')p.confirmation={name:'Maya Maker',at:'2026-11-18T10:00:00Z'};return route.fulfill({json:{data:true}});}return route.fallback();});
+ try{
+ await page.goto((process.env.TEST_URL||'http://127.0.0.1:5188'));await page.locator('#login-form').waitFor({state:'visible'});assert.equal(await page.locator('.app-shell').isVisible(),false);await page.locator('#login-form [name="email"]').fill('qa@example.test');await page.locator('#login-form [name="password"]').fill('test-only');await page.locator('#login-form button').click();await page.locator('#external-portal').waitFor({state:'visible'});console.log('PASS login gates cloud state and app scripts');
+
+
+
+
+
+
+
+ await page.getByRole('heading',{name:'Welcome, Maya',exact:true}).waitFor();const project=page.locator('[data-supplier-project="p1"]');await project.locator('summary').first().click();await page.waitForFunction(()=>document.querySelector('[data-supplier-product="rug"]').getAttribute('aria-expanded')==='true');assert.equal(await project.locator('.supplier-articles').isVisible(),true);assert.equal(await project.locator('[data-supplier-confirm]').isDisabled(),true);
+ await project.locator('[data-supplier-bom]').click();await page.getByRole('dialog').waitFor();assert.equal(await page.locator('dialog [aria-label="Material / material mix"]').inputValue(),'Wool');await page.keyboard.press('Escape');acceptApproval=true;await project.locator('[data-supplier-bom-approve]').click();await page.waitForFunction(()=>document.querySelector('[data-supplier-bom-approve="rug"]').textContent==='BOM approved');
+ await project.locator('[data-supplier-price] input').fill('25');await project.locator('[data-supplier-price] button').click();await page.waitForFunction(()=>!document.querySelector('[data-supplier-confirm="p1"]').disabled);await project.locator('[data-supplier-confirm]').click();await page.getByText('RFQ response confirmed. This is not an order.',{exact:true}).waitFor();assert.equal(actions,3);
+ await project.locator('[data-supplier-price] input').fill('26');assert.equal(await project.locator('[data-supplier-confirm]').isDisabled(),true);p1.revision='99';await project.locator('[data-supplier-price] button').click();await page.getByText('The specification or response changed. Review the updated information and save again.',{exact:true}).waitFor();assert.equal(actions,3);
+ const phased=page.locator('[data-supplier-project="p2"]');await phased.locator('summary').first().click();await page.waitForFunction(()=>document.querySelectorAll('[data-supplier-project="p2"] [data-supplier-phase][open]').length===3);assert.equal(await phased.getByText('Not assigned to a phase',{exact:true}).count(),1);await page.screenshot({path:output+'/manufacturer-responses.png'});
+ const large=page.locator('[data-supplier-project="p3"]');await large.locator('summary').first().click();assert.equal(await large.locator('[data-supplier-product][aria-expanded=true]').count(),0);
+ await page.locator('[data-supplier-filter=archived]').click();const archived=page.locator('[data-supplier-project="p4"]');await archived.locator('summary').first().click();assert.equal(await archived.locator('[data-supplier-price] input').isDisabled(),true);assert.equal(await archived.locator('[data-supplier-confirm]').isDisabled(),true);await archived.locator('[data-supplier-bom]').click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');
+ assert.equal(requests.some(url=>/\/JS\/(app|remote|data)\.js/.test(url)),false);await page.setViewportSize({width:390,height:844});await page.screenshot({path:output+'/manufacturer-responses-mobile.png'});assert.deepEqual(errors,[]);console.log('PASS supplier price/BOM/confirm workflow, stale response recovery, phases/remainders, small-project auto expansion, large-project collapse, archived read-only, modal and isolated scripts');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
