@@ -89,7 +89,7 @@
     s.articles.filter(a=>a.projectId===p.id).forEach(a=>{if(!counts.has(a.id))warnings.push(a.name+": not assigned to any phase.");});
     const phases=(p.phases||[]).map(ph=>{
       const c={...defaults(),...ph.calculation};
-      if(!ph.deliveryDate)warnings.push(ph.name+": delivery date missing.");
+      if(!ph.deliveryDate&&!ph.requestedDeliveryWeek&&!(p.phases[0]===ph&&p.requestedDeliveryWeek))warnings.push(ph.name+": requested delivery week missing.");
       if(ph.productionStart&&ph.deliveryDate&&ph.productionStart>ph.deliveryDate)errors.push(ph.name+": production start is after delivery.");
       const items=ph.items.map(i=>{
         const a=s.articles.find(a=>a.id===i.articleId&&a.projectId===p.id);
@@ -127,7 +127,8 @@
       if(!items.length&&salesPrice>freightShown)errors.push(ph.name+": add articles to allocate the quotation price.");
       let sampleSales=0;for(const a of items.filter(a=>a.productionSample)){a.salesTotal=cents(a.cost+a.shippingSupplementCost);a.salesUnit=a.salesTotal/a.quantity;sampleSales+=a.salesTotal;}
       let allocated=0;regular.forEach((a,index)=>{a.salesTotal=index===regular.length-1?cents(salesPrice-freightShown-sampleSales-allocated):cents((salesPrice-freightShown-sampleSales)*(regularCost?a.cost/regularCost:1/regular.length));allocated+=a.salesTotal;a.salesUnit=a.salesTotal/a.quantity;});
-      return {...clone(ph),items,calculation:c,productionCost,shippingSupplementCost,sampleCost,sampleQuotedCost,freightLabel,freightCost,dutyCost,importVatCost,otherImportCost,totalCost,salesPrice,freightShown};
+      const requestedDeliveryWeek=ph.requestedDeliveryWeek??(p.phases[0]===ph?p.requestedDeliveryWeek||'':'');const shipping=ph.shipping==='Air'?'Air':'Sea';const starts=productionStartWeeks(requestedDeliveryWeek,s.company?.productionPlanning);
+      return {...clone(ph),shipping,requestedDeliveryWeek,latestProductionStart:shipping==='Air'?starts.air:starts.sea,items,calculation:c,productionCost,shippingSupplementCost,sampleCost,sampleQuotedCost,freightLabel,freightCost,dutyCost,importVatCost,otherImportCost,totalCost,salesPrice,freightShown};
     });
     const sum=k=>phases.reduce((n,p)=>n+p[k],0);
     // Reconcile the final cent against the project formula, not a sum of rounded phases.
