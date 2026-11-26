@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const ASSET_VERSION = "7.9.80";
+  const ASSET_VERSION = "7.9.81";
   const loginScreen = document.querySelector("#login-screen");
   const appShell = document.querySelector(".app-shell");
   const form = document.querySelector("#login-form");
@@ -11,6 +11,24 @@
 
   let appStarted = false;
   let client;
+
+  window.CDPUploadBomPdf=async file=>{
+    if(!file||!file.name.toLowerCase().endsWith('.pdf')||file.size===0||file.size>20*1024*1024)throw Error('Choose a PDF file up to 20 MB.');
+    if(new TextDecoder().decode(await file.slice(0,5).arrayBuffer())!=='%PDF-')throw Error('The file is not a valid PDF.');
+    const path=crypto.randomUUID()+'.pdf',bucket=client.storage.from('cdp-bom-pdfs');
+    const result=await bucket.upload(path,file,{contentType:'application/pdf',upsert:false});
+    if(result.error)throw Error('PDF upload failed. Check that 018_bom_pdf_storage.sql is installed. '+result.error.message);
+    return {name:file.name,url:config.url.replace(/\/$/,'')+'/storage/v1/object/authenticated/cdp-bom-pdfs/'+path};
+  };
+  document.addEventListener('click',async e=>{
+    const link=e.target.closest?.('a[href]');if(!link)return;
+    const prefix=config.url?.replace(/\/$/,'')+'/storage/v1/object/authenticated/cdp-bom-pdfs/';
+    if(!link.href.startsWith(prefix))return;
+    e.preventDefault();const path=link.href.slice(prefix.length);if(!/^[a-f0-9-]+\.pdf$/.test(path))return;
+    const viewer=window.open('about:blank','_blank');if(viewer)viewer.opener=null;
+    try{const result=await client.storage.from('cdp-bom-pdfs').createSignedUrl(path,60);if(result.error)throw result.error;if(viewer)viewer.location=result.data.signedUrl;else window.location.assign(result.data.signedUrl);}
+    catch(error){viewer?.close();window.alert('Could not open PDF. '+error.message);}
+  });
 
   function showLogin(message) {
     if (appShell) {
